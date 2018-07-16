@@ -276,7 +276,7 @@ class TableModel(QAbstractTableModel):
                 color = self._data[row]
                 if color[0] == '':
                     return self.c_color
-                color = map(lambda a, b:int(a*255) if b!=3 else 255, color[0:4], xrange(4))
+                color = map(lambda a, b:int(a*255) if b!=3 else 255, color[7], xrange(4))
                 return QColor(*color)
             if row in self.mesh_rows:
                 if column == 0:
@@ -291,9 +291,9 @@ class TableModel(QAbstractTableModel):
     def get_data(self, index=None, row=0, column=0):
         try:
             if index:
-                value  = self._data[index.row()][index.column()]
+                value  = self._data[index.row()][7][index.column()]
             else:
-                value  = self._data[row][column]
+                value  = self._data[row][7][column]
         except:
             value = 0
         return value
