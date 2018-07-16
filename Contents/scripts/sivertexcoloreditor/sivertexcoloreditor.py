@@ -1479,13 +1479,9 @@ class MainWindow(qt.MainWindow):
     def refresh_table_view(self):
         #フォーカス移してテーブルの状態を更新する
         #self.setFocus()
-        #self.view_widget.setFocus()
-        #self.view_widget.clearFocus()
+        self.view_widget.setFocus()
+        self.view_widget.clearFocus()
         #self.raise_()
-        try:
-            self.color_model.reset()
-        except:
-            pass
             
     #チャンネル表示変更、API版
     @timer
@@ -1610,6 +1606,9 @@ class MainWindow(qt.MainWindow):
                 
     #ペイント、セット変更の更新をUIに反映する
     def update_colors(self):
+        #アクティブウィンドウが自分自身ならアップデート不要なので逃げる
+        if QApplication.activeWindow() == self:
+            return
         #print 'update color data :'
         id = self.channel_but_group.checkedId()
         loop_list = [range(4), range(3), [0], [1], [2], [3]][id]
