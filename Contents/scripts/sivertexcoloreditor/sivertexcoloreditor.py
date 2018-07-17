@@ -37,7 +37,8 @@ except ImportError:
 #b1.0.1 高速化・ドック廃止・ダイレクト入力
 #b1.0.2 カラーチャンネル変更時のペイント対応
 #b1.0.3 ペイントのリアルタイム検出
-VERSION = 'b1.0.3'
+#b1.0.4 書き込み高速化10倍、不具合修正
+VERSION = 'b1.0.4'
 
 #速度計測結果を表示するかどうか
 COUNTER_PRINT = True
@@ -49,9 +50,9 @@ BUTTON_HEIGHT = 22
 MAXIMUM_DIGIT = 1.0
 
 #GitHub
-HELP_PATH = 'https://github.com/ShikouYamaue/SIWeightEditor/blob/master/README.md'
+HELP_PATH = 'https://github.com/ShikouYamaue/SIVertexColorEditor/blob/master/README.md'
 #リリースページ
-REREASE_PATH = 'https://github.com/ShikouYamaue/SIWeightEditor/releases'
+REREASE_PATH = 'https://github.com/ShikouYamaue/SIVertexColorEditor/releases'
 
 #焼きこみプラグインをロードしておく
 try:
@@ -309,7 +310,7 @@ class TableModel(QAbstractTableModel):
             row = index[0]
             column = index[1]
         if role == Qt.EditRole and value != "":
-            self._data[row][column] = value
+            self._data[row][7][column] = value
             self.dataChanged.emit((row, column), (row, column))#データをアップデート
             return True
         else:
@@ -688,9 +689,10 @@ class MainWindow(qt.MainWindow):
         tool_widget = QWidget()
         tool_widget.setGeometry(QRect(0, 0, 0 ,0))
         tool_layout = QHBoxLayout()
+        tool_layout.setSpacing(0)#ウェジェットどうしの間隔を設定する
         tool_widget.setLayout(tool_layout)
-        but_w = 45
-        widget_w =54
+        but_w = 55
+        widget_w = 125
         tool_widget.setMinimumWidth(widget_w)
         tool_widget.setMaximumWidth(widget_w)
         tool_widget.setMaximumHeight(WIDGET_HEIGHT)
@@ -699,6 +701,12 @@ class MainWindow(qt.MainWindow):
                                                     flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
         self.paint_but.clicked.connect(lambda : mel.eval('PaintVertexColorTool;'))
         tool_layout.addWidget(self.paint_but)
+        but_w = 62
+        tip = lang.Lang(en='Start color set editor', ja=u'カラーセットエディターを起動').output()
+        self.color_set_but = qt.make_flat_btton(name='SetEditor', bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
+        self.color_set_but.clicked.connect(lambda : mel.eval('colorSetEditor;'))
+        tool_layout.addWidget(self.color_set_but)
         self.but_list.append(tool_widget)
         
         self.set_column_stretch()#ボタン間隔が伸びないようにする
@@ -988,7 +996,7 @@ class MainWindow(qt.MainWindow):
     #UIに選択コンポーネントのバーテックスカラーを反映
     #@prof.profileFunction()
     @timer
-    def get_set_vertex_color(self, sel_vertices=None, cycle=False, clear=False):
+    def get_set_vertex_color(self, sel_vertices=None, cycle=False, clear=False, reselect=False):
         try:
             if cmds.selectMode(q=True, o=True) and not self.show_mesh_but.isChecked():
                 return
@@ -1042,6 +1050,9 @@ class MainWindow(qt.MainWindow):
                     self.sel_vertices_dict[mesh_path_name] = fv_array
                     sel_vertices += fv_array
                     iter.next()
+            else:
+                if sel_vertices:
+                    self.sel_vertices_dict = sel_vertices
         self.view_vertices = sel_vertices
                 
         if self.pre_sel == sel and sel_vertices is None:
@@ -1051,36 +1062,37 @@ class MainWindow(qt.MainWindow):
         self.pre_sel_vertices = sel_vertices
         self.counter.count(string='get mesh vtx :')
         
-        for node in self.hl_nodes[:]:
-            sList = om2.MSelectionList()
-            sList.add(node)
-            dagPath, component = sList.getComponent(0)
-            
-            meshTr = om2.MFnTransform(dagPath)
-            meshFn = om2.MFnMesh(dagPath)
-            
-            cur_color_set_list = cmds.polyColorSet(meshFn.fullPathName(), q=True, currentColorSet=True)
-            #colorSerがない場合は処理をスキップしてぬける
-            if cur_color_set_list == None:
-                self.hl_nodes.remove(node)
-                continue
-            else:
-                cur_color_set = cur_color_set_list[0]
-            
-            mesh_vtx_colors = meshFn.getFaceVertexColors(cur_color_set)
-            #色変更のために辞書格納しておく
-            if self.channel_but_group.checkedId() == 0 or not node in self.pre_hl_nodes:
-                self.mesh_color_dict[meshTr.fullPathName()] = mesh_vtx_colors
-                shape = cmds.listRelatives(node, s=True, fullPath=True)
-                fv_array, f_array, v_array = self.convert_comp_to_fv_list(dagPath, meshFn, component)
-                self.temp_vf_face_dict[node] = f_array
-                self.temp_vf_vtx_dict[node] = v_array
-                self.node_vertex_dict[node] = fv_array
-                self.node_vertex_dict_dict[node] = {fv:i for i, fv in enumerate(fv_array)}
+        if not reselect:
+            for node in self.hl_nodes[:]:
+                sList = om2.MSelectionList()
+                sList.add(node)
+                dagPath, component = sList.getComponent(0)
                 
-        self.org_mesh_color_dict = {}#アンドゥできるコマンドのためにオリジナルの値を保持
-        for mesh, color_list in self.mesh_color_dict.items():
-            self.org_mesh_color_dict[mesh] = color_list[:]
+                meshTr = om2.MFnTransform(dagPath)
+                meshFn = om2.MFnMesh(dagPath)
+                
+                cur_color_set_list = cmds.polyColorSet(meshFn.fullPathName(), q=True, currentColorSet=True)
+                #colorSerがない場合は処理をスキップしてぬける
+                if cur_color_set_list == None:
+                    self.hl_nodes.remove(node)
+                    continue
+                else:
+                    cur_color_set = cur_color_set_list[0]
+                
+                mesh_vtx_colors = meshFn.getFaceVertexColors(cur_color_set)
+                #色変更のために辞書格納しておく
+                if self.channel_but_group.checkedId() == 0 or not node in self.pre_hl_nodes:
+                    self.mesh_color_dict[meshTr.fullPathName()] = mesh_vtx_colors
+                    shape = cmds.listRelatives(node, s=True, fullPath=True)
+                    fv_array, f_array, v_array = self.convert_comp_to_fv_list(dagPath, meshFn, component)
+                    self.temp_vf_face_dict[node] = f_array
+                    self.temp_vf_vtx_dict[node] = v_array
+                    self.node_vertex_dict[node] = fv_array
+                    self.node_vertex_dict_dict[node] = {fv:i for i, fv in enumerate(fv_array)}
+                    
+            self.org_mesh_color_dict = {}#アンドゥできるコマンドのためにオリジナルの値を保持
+            for mesh, color_list in self.mesh_color_dict.items():
+                self.org_mesh_color_dict[mesh] = color_list[:]
             
         self.counter.count(string='get vtx color :')
         
@@ -1101,7 +1113,6 @@ class MainWindow(qt.MainWindow):
             self._data.append(items)
             
             node_vertices = self.node_vertex_dict[node]
-            sel_vertices = self.sel_vertices_dict[node]
             
             target_vertices = self.sel_vertices_dict[node]#メッシュごとの選択頂点
             
@@ -1320,7 +1331,11 @@ class MainWindow(qt.MainWindow):
     def select_vertex_from_cells(self):
         #print 'select_vertex_from_cells'
         rows = list(set([item.row() for item in self.selected_items]))
-        vertices = [self.vtx_row_dict[r][0] for r in rows]
+        vertices = []
+        for r in rows:
+            node = self._data[r][4]
+            vf = self._data[r][6]
+            vertices.append(node + '.vtxFace['+str(vf[0])+']['+str(vf[1])+']')
         if vertices:
             cmds.selectMode(co=True)
             cmds.select(vertices, r=True)
@@ -1328,13 +1343,18 @@ class MainWindow(qt.MainWindow):
     #選択されているセルの行のみの表示に絞る
     def show_selected_cells(self):
         rows = list(set([item.row() for item in self.selected_items]))
-        vertices = [self.vtx_row_dict[r][0] for r in rows]
-        self.get_set_vertex_color(sel_vertices=vertices)
+        sel_vertices_dict = defaultdict(lambda : {})
+        for r in rows:
+            node = self._data[r][4]
+            vid = self._data[r][5]
+            vf = self._data[r][6]
+            vertex_dict = sel_vertices_dict[node]
+            vertex_dict[vf] = vid
+        #sel_vertices_dict[node] += vf
+        self.get_set_vertex_color(sel_vertices=sel_vertices_dict, reselect=True)
                 
     def show_all_cells(self):
-        vertices = common.conv_comp(self.hl_nodes, mode='vf')#現在選択している頂点
-        if vertices:
-            self.get_set_vertex_color(sel_vertices=vertices, cycle=True)
+        self.get_set_vertex_color(cycle=True)
             
     #スピンボックスがフォーカス持ってからきーが押されたかどうかを格納しておく
     def store_keypress(self, pressed):
@@ -1351,13 +1371,11 @@ class MainWindow(qt.MainWindow):
     #入力値をモードに合わせてセルの値と合算、セルに値を戻す
     @timer
     def calc_cell_value(self, from_spinbox=False, from_input_box=False):
-        if not  self.selected_items:
+        if not self.selected_items:
             #print 'culc cell value , nothing selection return:'
             return
         self.text_value_list = []
         if not self.change_flag and not from_spinbox:
-            return
-        if not self.selected_items:
             return
         #絶対値モードでフォーカス外したときに0だった時の場合分け
         if from_spinbox and not self.key_pressed and not from_input_box:
@@ -1385,7 +1403,7 @@ class MainWindow(qt.MainWindow):
                 new_value = int(add_value)/255.0
             #まとめてデータ反映
             for cell_id in self.selected_items:
-                self.color_model.setData(cell_id, new_value)
+                #self.color_model.setData(cell_id, new_value)
                 #焼き込みようリストを更新しておく
                 row = cell_id.row()
                 column = cell_id.column() 
@@ -1437,7 +1455,7 @@ class MainWindow(qt.MainWindow):
                 elif new_value < 0.0:
                     new_value = 0.0
                     
-                self.color_model.setData(cell_id, new_value)
+                #self.color_model.setData(cell_id, new_value)
                 self.mesh_color_dict[node][vid][rgba] = new_value#全ての頂点の情報更新
                 
             #処理後のスピンボックスの値を設定
@@ -1462,6 +1480,35 @@ class MainWindow(qt.MainWindow):
         self.counter.count(string='bake vertex color :')
         
         self.counter.lap_print(print_flag=COUNTER_PRINT, window=self)
+            
+    #@timer
+    def bake_vertex_color(self, realbake=True, ignoreundo=False):
+        #APIでアンドゥ実装したカスタムコマンドのためにグローバル空間に値を保持しておく
+        set_current_data(self.hl_nodes, self.mesh_color_dict, self.org_mesh_color_dict, self.temp_vf_face_dict, self.temp_vf_vtx_dict)
+        cmds.bakeVertexColor(rb=realbake, iu=ignoreundo)
+        #アンドゥ履歴用カラーを更新しておく
+        self.org_mesh_color_dict = {}
+        for mesh, color_list in self.mesh_color_dict.items():
+            self.org_mesh_color_dict[mesh] = color_list[:]
+        self.refresh_table_view()
+        
+    #パーセントの時の特殊処理、元の値を保持する
+    change_flag = False
+    def sld_pressed(self):
+        cmds.undoInfo(openChunk=True)
+        #マウスプレス直後に履歴を残す焼き込みする。実際のベイクはしない。
+        self.bake_vertex_color(realbake=False, ignoreundo=False)
+        self.change_flag = True#スライダー操作中のみ値の変更を許可するフラグ
+            
+    #パーセントの特殊処理、値をリリースして初期値に戻る
+    def sld_released(self):
+        self.calc_cell_value()
+        self.change_flag = False
+        if self.add_mode == 1 or self.add_mode == 2:
+            self.weight_input.setValue(0.0)
+            self.change_from_spinbox()
+            self.pre_add_value = 0.0
+        cmds.undoInfo(closeChunk=True)
         
     #ノーマルモードを切り替える
     @timer
@@ -1541,7 +1588,7 @@ class MainWindow(qt.MainWindow):
         #print 'change pre channnel id :', id
         self.cc_counter.count(string='change color channel:')
             
-        self.cc_counter.lap_print()
+        self.cc_counter.lap_print(print_flag=COUNTER_PRINT, window=self)
         
     #各チャンネルの変更を考慮してオリジナルチャンネルに復旧する
     def reset_to_rgba(self, target_nodes, pre_id):
@@ -1598,12 +1645,18 @@ class MainWindow(qt.MainWindow):
             
             
             if shape:
-                job = cmds.scriptJob(attributeChange=[shape[0] + '.colorSet[0].representation', self.update_colors])
-                self.color_job_list.append(job)
+                try:
+                    job = cmds.scriptJob(attributeChange=[shape[0] + '.colorSet[0].representation', self.update_colors])
+                    self.color_job_list.append(job)
+                except:
+                    pass
             if color_hist:
-                job = cmds.scriptJob(attributeChange=[color_hist[0] + '.output', self.update_colors])
-                self.color_job_list.append(job)
-                
+                try:
+                    job = cmds.scriptJob(attributeChange=[color_hist[0] + '.output', self.update_colors])
+                    self.color_job_list.append(job)
+                except:
+                    pass
+                    
     #ペイント、セット変更の更新をUIに反映する
     def update_colors(self):
         #アクティブウィンドウが自分自身ならアップデート不要なので逃げる
@@ -1645,7 +1698,10 @@ class MainWindow(qt.MainWindow):
     def reset_color_job(self):
         for node in self.hl_nodes:
             #print 'currentColorSetJob :', node
-            shape = cmds.listRelatives(node, s=True, f=True)
+            try:
+                shape = cmds.listRelatives(node, s=True, f=True)
+            except:
+                continue
             job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.create_color_job])
             self.reset_job_list.append(job)
             job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.update_colors])
@@ -1687,35 +1743,6 @@ class MainWindow(qt.MainWindow):
                 target_nodes = cmds.ls(sl=True, l=True, tr=True)
         if target_nodes:
             qt.Callback(self.change_view_channel(id=0, change_node=target_nodes, reset=False))
-            
-                
-    #@timer
-    def bake_vertex_color(self, realbake=True, ignoreundo=False):
-        #APIでアンドゥ実装したカスタムコマンドのためにグローバル空間に値を保持しておく
-        set_current_data(self.hl_nodes, self.mesh_color_dict, self.org_mesh_color_dict, self.temp_vf_face_dict, self.temp_vf_vtx_dict)
-        cmds.bakeVertexColor(rb=realbake, iu=ignoreundo)
-        #アンドゥ履歴用カラーを更新しておく
-        self.org_mesh_color_dict = {}
-        for mesh, color_list in self.mesh_color_dict.items():
-            self.org_mesh_color_dict[mesh] = color_list[:]
-        
-    #パーセントの時の特殊処理、元の値を保持する
-    change_flag = False
-    def sld_pressed(self):
-        cmds.undoInfo(openChunk=True)
-        #マウスプレス直後に履歴を残す焼き込みする。実際のベイクはしない。
-        self.bake_vertex_color(realbake=False, ignoreundo=False)
-        self.change_flag = True#スライダー操作中のみ値の変更を許可するフラグ
-            
-    #パーセントの特殊処理、値をリリースして初期値に戻る
-    def sld_released(self):
-        self.calc_cell_value()
-        self.change_flag = False
-        if self.add_mode == 1 or self.add_mode == 2:
-            self.weight_input.setValue(0.0)
-            self.change_from_spinbox()
-            self.pre_add_value = 0.0
-        cmds.undoInfo(closeChunk=True)
                 
     select_job = None
     color_job = None
