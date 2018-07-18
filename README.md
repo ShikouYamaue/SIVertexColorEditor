@@ -57,6 +57,9 @@ ApplicationPluginsフォルダが存在しない場合は作成してくださ�
 
 ![veretex6](https://user-images.githubusercontent.com/28256498/42885664-855f67c6-8adc-11e8-9492-e83b3156daab.gif)
 
+![veretex7](https://user-images.githubusercontent.com/28256498/42887318-ac971862-8ae0-11e8-8200-3a212a4fd04f.gif)
+
+
 ## 主な機能・入力
 
 ### 入力方法4種類  
@@ -84,6 +87,10 @@ RGBのみ表示とRGBA各チャンネルのグレースケール表示を切り�
 表示を切り替えたままエディット可能です。  
 
 ![veretex3](https://user-images.githubusercontent.com/28256498/42885255-73414d1c-8adb-11e8-986d-bfd6aea1db05.gif)
+
+切替は選択変更時に自動的に復旧します。  
+
+![veretex8](https://user-images.githubusercontent.com/28256498/42887351-bab377c4-8ae0-11e8-8007-56549f028d2f.gif)
  
 ### ペイント機能とチャンネル切替の併用
 
