@@ -45,6 +45,17 @@ ApplicationPluginsフォルダが存在しない場合は作成してくださ�
 ![veretex5](https://user-images.githubusercontent.com/28256498/42885349-b75a58f4-8adb-11e8-9c62-469f688f88e0.gif)
 
 ### 基本UI表示3
+![image](https://user-images.githubusercontent.com/28256498/42885438-e460619a-8adb-11e8-9d7f-10202199d134.png)
+
+・Mesh →　メッシュ選択変更をUIに反映するかどうか  
+・Comp →　コンポーネント選択変更をUIに反映するかどうか  
+・+0.5 →　256諧調表示のときに数値に0.5加算する  
+※256諧調を0-1で頂点カラー格納したあとまた256諧調に復元すると計算誤差で少し減ります。  
+端数切捨ての場合は狙った数値にならないのでそんなときのためのオプション  
+・カラーボタン →　シーン内のバーテックスカラー全表示  
+・グレーボタン →　シーン内のバーテックスカラー全非表示  
+
+![veretex6](https://user-images.githubusercontent.com/28256498/42885664-855f67c6-8adc-11e8-9492-e83b3156daab.gif)
 
 ## 主な機能・入力
 
