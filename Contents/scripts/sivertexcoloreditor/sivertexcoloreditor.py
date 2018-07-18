@@ -38,7 +38,8 @@ except ImportError:
 #b1.0.2 カラーチャンネル変更時のペイント対応
 #b1.0.3 ペイントのリアルタイム検出
 #b1.0.4 書き込み高速化10倍、不具合修正、カラーセットエディタ起動ボタン
-VERSION = 'b1.0.4'
+#b1.0.5 不具合修正
+VERSION = 'b1.0.5'
 
 #速度計測結果を表示するかどうか
 COUNTER_PRINT = True
@@ -160,18 +161,18 @@ class PopInputBox(qt.SubWindow):
             if mode == 0:
                 if float_flag:
                     self.input.setDecimals(3)
-                    self.input.setRange(0, 1.0)
+                    self.input.setRange(0, 9.0)
                 else:
                     self.input.setDecimals(0)
-                    self.input.setRange(0, 255)
+                    self.input.setRange(0, 999)
                 self.input.setValue(value)
             elif mode == 1:
                 if float_flag:
                     self.input.setDecimals(3)
-                    self.input.setRange(-1.0, 1.0)
+                    self.input.setRange(-9.0, 9.0)
                 else:
                     self.input.setDecimals(0)
-                    self.input.setRange(-255, 255)
+                    self.input.setRange(-999, 999)
                 self.input.setValue(value)
             elif mode == 2:
                     self.input.setDecimals(1)
@@ -982,8 +983,8 @@ class MainWindow(qt.MainWindow):
     def init_list_dict(self):
         self.mesh_color_dict = {}
         self.pre_hl_nodes = []
-        self.hl_nodes = None
-        self.pre_sel = None
+        self.hl_nodes = []
+        self.pre_sel = []
         self.pre_sel_vertices = []
         self.temp_vf_face_dict = {}
         self.temp_vf_vtx_dict = {}
@@ -1401,6 +1402,10 @@ class MainWindow(qt.MainWindow):
                 if self.add_5_but.isChecked():
                     add_value += 0.5
                 new_value = int(add_value)/255.0
+            #0-1.0でクランプ
+            new_value = min([1.0, new_value])
+            new_value = max([0, new_value])
+            
             #まとめてデータ反映
             for cell_id in self.selected_items:
                 #self.color_model.setData(cell_id, new_value)
