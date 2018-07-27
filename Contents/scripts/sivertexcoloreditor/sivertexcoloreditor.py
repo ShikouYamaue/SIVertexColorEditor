@@ -39,7 +39,7 @@ except ImportError:
 #b1.0.3 ペイントのリアルタイム検出
 #b1.0.4 書き込み高速化10倍、不具合修正、カラーセットエディタ起動ボタン
 #b1.0.5 不具合修正
-VERSION = 'b1.0.5'
+VERSION = 'b1.0.6'
 
 #速度計測結果を表示するかどうか
 COUNTER_PRINT = True
@@ -103,12 +103,17 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
             delta /= abs(delta)#120単位を1単位に直す
             shift_mod = self.check_shift_modifiers()
             ctrl_mod = self.check_ctrl_modifiers()
-            if shift_mod:
-                self.setValue(self.value()+delta*0.001*MAXIMUM_DIGIT)
-            elif ctrl_mod:
-                self.setValue(self.value()+delta*0.1*MAXIMUM_DIGIT)
+            if window.mode_but_group.checkedId() == 2 or MAXIMUM_DIGIT == 100:
+                offset = 100.0
             else:
-                self.setValue(self.value()+delta*0.01*MAXIMUM_DIGIT)
+                offset = 1.0
+            
+            if shift_mod:
+                self.setValue(self.value()+delta*0.001*offset)
+            elif ctrl_mod:
+                self.setValue(self.value()+delta*0.1*offset)
+            else:
+                self.setValue(self.value()+delta*0.01*offset)
             cmds.scriptJob(ro=True, e=("idle", self.emit_wheel_event), protected=True)
         if event.type() == QEvent.KeyPress:
             self.keypressed.emit()
@@ -129,6 +134,54 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
             self.selectAll()
         except:
             pass
+            
+    def sel_all_input(self):
+        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
+            
+    def check_shift_modifiers(self):
+        mods = QApplication.keyboardModifiers()
+        isShiftPressed =  mods & Qt.ShiftModifier
+        shift_mod = bool(isShiftPressed)
+        return shift_mod
+        
+    def check_ctrl_modifiers(self):
+        mods = QApplication.keyboardModifiers()
+        isCtrlPressed =  mods & Qt.ControlModifier
+        ctrl_mod = bool(isCtrlPressed)
+        return ctrl_mod
+        
+class EditorSpinbox(QSpinBox):
+    wheeled = Signal(int)
+    focused = Signal()
+    keypressed = Signal()
+    mousepressed = Signal()
+    def __init__(self, parent=None):
+        super(self.__class__, self).__init__(parent)
+        self.installEventFilter(self)
+        
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.FocusIn:
+            self.focused.emit()
+            self.sel_all_input()
+        if event.type() == QEvent.Wheel:
+            cmds.scriptJob(ro=True, e=("idle", self.emit_wheel_event), protected=True)
+        if event.type() == QEvent.KeyPress:
+            self.keypressed.emit()
+        if event.type() == QEvent.MouseButtonPress:
+            self.mousepressed.emit()
+        return False
+    #ウェイト入力窓を選択するジョブ
+    def sel_all_input(self):
+        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
+    #スピンボックスの数値を全選択する
+    def select_box_all(self):
+        try:
+            self.selectAll()
+        except:
+            pass
+            
+    def emit_wheel_event(self):
+        self.wheeled.emit(self.value)
             
     def check_shift_modifiers(self):
         mods = QApplication.keyboardModifiers()
@@ -379,6 +432,7 @@ class MainWindow(qt.MainWindow):
             os.getenv('MAYA_APP_dir'),
             'Scripting_Files')
         self.w_file = self.dir_path+'/'+temp[-1]+'_window.json'
+        self.custom_color_path = self.dir_path+'/'+temp[-1]+'_custom_color.json'
     
     #セーブファイルを読み込んで返す　   
     def load_window_data(self, init_pos=False):
@@ -404,6 +458,7 @@ class MainWindow(qt.MainWindow):
                     self.mode = save_data['mode']
                     self.rgba = save_data['rgba']
                     self.norm = save_data['norm']
+                    self.copy_colors = save_data['copy_color']
             except Exception as e:
                 print e.message, 'in load data'
                 self.init_save_data()
@@ -423,6 +478,7 @@ class MainWindow(qt.MainWindow):
         self.mode = 0
         self.rgba = 0
         self.norm = False
+        self.copy_colors = [0.502, 0.502, 0.502, 1.0]
     
     def save_window_data(self, display=True):
         if not os.path.exists(self.dir_path):
@@ -444,6 +500,7 @@ class MainWindow(qt.MainWindow):
         save_data['mode'] = self.mode_but_group.checkedId()
         save_data['rgba'] = self.channel_but_group.checkedId()
         save_data['norm'] = self.norm_but.isChecked()
+        save_data['copy_color'] = self.copy_colors
         if not os.path.exists(self.dir_path):
             os.makedirs(self.dir_path)
         with open(self.w_file, 'w') as f:
@@ -647,7 +704,7 @@ class MainWindow(qt.MainWindow):
         channel_widget.setLayout(channel_layout)
         channel_widget.setMaximumHeight(WIDGET_HEIGHT)
         but_w = 45
-        norm_w =75
+        norm_w = 75
         channel_widget.setMinimumWidth(but_w*6+12)
         channel_widget.setMaximumWidth(but_w*6+12)
         self.channel_but_group = QButtonGroup()
@@ -685,6 +742,37 @@ class MainWindow(qt.MainWindow):
         channel_layout.addWidget(self.blue_but)
         channel_layout.addWidget(self.alpha_but)
         self.but_list.append(channel_widget)
+        
+        #コピペ
+        copy_widget = QWidget()
+        copy_widget.setGeometry(QRect(0, 0, 0 ,0))
+        copy_layout = QHBoxLayout()
+        copy_layout.setSpacing(0)#ウェジェットどうしの間隔を設定する
+        copy_widget.setLayout(copy_layout)
+        but_w = 45
+        widget_w = 150
+        copy_widget.setMinimumWidth(widget_w)
+        copy_widget.setMaximumWidth(widget_w)
+        copy_widget.setMaximumHeight(WIDGET_HEIGHT)
+        tip = lang.Lang(en='Copy Color', ja=u'カラーのコピー').output()
+        self.copy_but = qt.make_flat_btton(name='Copy', bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
+        self.copy_but.clicked.connect(self.copy_color)
+        copy_layout.addWidget(self.copy_but)
+        tip = lang.Lang(en='Paste Color\nLeft click >> RGB paste\nRight click >> RGBA paste', ja=u'カラーのペースト\n左クリック→RGBペースト\n右クリック→RGBAペースト').output()
+        self.paste_but = qt.make_flat_btton(name='Paste', bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
+        self.paste_but.clicked.connect(self.paste_color)
+        self.paste_but.rightClicked.connect(lambda : self.paste_color(alpha=True))
+        copy_layout.addWidget(self.paste_but)
+        tip = lang.Lang(en='Open Color Setting', ja=u'カラー設定を開く').output()
+        color = map(lambda c : int(c*255), self.copy_colors)[0:3]
+        self.color_but = qt.make_flat_btton(name='', bg=color, ui_color=color, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=False, checkable=False, destroy_flag=True, tip=tip)
+        self.color_but.clicked.connect(self.open_color_dialog)
+        copy_layout.addWidget(self.color_but)
+        self.but_list.append(copy_widget)
+        
         
         #追加ツール群
         tool_widget = QWidget()
@@ -735,7 +823,7 @@ class MainWindow(qt.MainWindow):
         self.weight_input.editingFinished.connect(lambda : self.calc_cell_value(from_spinbox=True))
         self.weight_input.focused.connect(lambda : self.store_keypress(False))
         self.weight_input.keypressed.connect(lambda : self.store_keypress(True))
-        self.weight_input.focused.connect(self.sel_all_weight_input)
+        #self.weight_input.focused.connect(lambda : self.sel_all_weight_input(widget=self.weight_input))
         
         self.weight_input_sld.valueChanged.connect(self.change_from_sld)
         self.weight_input_sld.sliderPressed.connect(self.sld_pressed)
@@ -744,12 +832,119 @@ class MainWindow(qt.MainWindow):
         
         self.main_layout.addLayout(sld_layout)
         
-        #テーブル作成
+        #テーブル作成-----------------------------------------------------------------------
         self.view_widget = RightClickTableView(self)
         self.view_widget.verticalHeader().setDefaultSectionSize(20)
         self.view_widget.rightClicked.connect(self.get_clicke_item_value)
         self.view_widget.keyPressed .connect(self.direct_cell_input)
         self.main_layout.addWidget(self.view_widget)
+        
+        #Hueスライダー作成----------------------------------------------------------------
+        hue_layout = QHBoxLayout()
+        self.main_layout.addLayout(hue_layout)
+        
+        label = QLabel('         Hue - ')
+        hue_layout.addWidget(label)
+        
+        self.hue_input = EditorSpinbox()#スピンボックス
+        self.hue_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.hue_input.setRange(-180, 180)
+        self.hue_input.setValue(0.0)#値を設定
+        hue_layout.addWidget(self.hue_input)
+        #スライダバーを設定
+        self.hue_input_sld = QSlider(Qt.Horizontal)
+        self.hue_input_sld.setRange(-180, 180)
+        hue_layout.addWidget(self.hue_input_sld)
+        #スライダーとボックスの値をコネクト
+        self.hue_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
+        self.hue_input.wheeled.connect(lambda : self.store_keypress(True))
+        self.hue_input.wheeled.connect(lambda : self.hue_input_sld.setValue(self.hue_input.value()))
+        self.hue_input.editingFinished.connect(lambda : self.hue_input_sld.setValue(self.hue_input.value()))
+        self.hue_input.focused.connect(lambda : self.store_keypress(False))
+        self.hue_input.keypressed.connect(lambda : self.store_keypress(True))
+        self.hue_input_sld.valueChanged[int].connect(self.hue_input.setValue)
+        self.hue_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='hue'))
+        self.hue_input_sld.sliderReleased.connect(self.hsv_sld_released)
+        
+        #saturationスライダー作成----------------------------------------------------------------
+        saturation_layout = QHBoxLayout()
+        self.main_layout.addLayout(saturation_layout)
+        label = QLabel('Saturation - ')
+        saturation_layout.addWidget(label)
+        
+        self.saturation_input = EditorSpinbox()#スピンボックス
+        self.saturation_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.saturation_input.setRange(-255, 255)
+        self.saturation_input.setValue(0.0)#値を設定
+        saturation_layout.addWidget(self.saturation_input)
+        #スライダバーを設定
+        self.saturation_input_sld = QSlider(Qt.Horizontal)
+        self.saturation_input_sld.setRange(-255, 255)
+        saturation_layout.addWidget(self.saturation_input_sld)
+        #スライダーとボックスの値をコネクト
+        self.saturation_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
+        self.saturation_input.wheeled.connect(lambda : self.store_keypress(True))
+        self.saturation_input.wheeled.connect(lambda : self.saturation_input_sld.setValue(self.saturation_input.value()))
+        self.saturation_input.editingFinished.connect(lambda : self.saturation_input_sld.setValue(self.saturation_input.value()))
+        self.saturation_input.focused.connect(lambda : self.store_keypress(False))
+        self.saturation_input.keypressed.connect(lambda : self.store_keypress(True))
+        self.saturation_input_sld.valueChanged[int].connect(self.saturation_input.setValue)
+        self.saturation_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='saturation'))
+        self.saturation_input_sld.sliderReleased.connect(self.hsv_sld_released)
+        
+        #Valueスライダー作成----------------------------------------------------------------
+        value_layout = QHBoxLayout()
+        self.main_layout.addLayout(value_layout)
+        label = QLabel('       Value - ')
+        value_layout.addWidget(label)
+        
+        self.value_input = EditorSpinbox()#スピンボックス
+        self.value_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.value_input.setRange(-255, 255)
+        self.value_input.setValue(0.0)#値を設定
+        value_layout.addWidget(self.value_input)
+        #スライダバーを設定
+        self.value_input_sld = QSlider(Qt.Horizontal)
+        self.value_input_sld.setRange(-255, 255)
+        value_layout.addWidget(self.value_input_sld)
+        #スライダーとボックスの値をコネクト
+        self.value_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
+        self.value_input.wheeled.connect(lambda : self.store_keypress(True))
+        self.value_input.wheeled.connect(lambda : self.value_input_sld.setValue(self.value_input.value()))
+        self.value_input.editingFinished.connect(lambda : self.value_input_sld.setValue(self.value_input.value()))
+        self.value_input.focused.connect(lambda : self.store_keypress(False))
+        self.value_input.keypressed.connect(lambda : self.store_keypress(True))
+        self.value_input_sld.valueChanged[int].connect(self.value_input.setValue)
+        self.value_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='value'))
+        self.value_input_sld.sliderReleased.connect(self.hsv_sld_released)
+        
+        #saturationスライダー作成----------------------------------------------------------------
+        contrast_layout = QHBoxLayout()
+        self.main_layout.addLayout(contrast_layout)
+        label = QLabel('  Contrast - ')
+        contrast_layout.addWidget(label)
+        
+        self.contrast_input = EditorSpinbox()#スピンボックス
+        self.contrast_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.contrast_input.setRange(-100, 100)
+        self.contrast_input.setValue(0.0)#値を設定
+        contrast_layout.addWidget(self.contrast_input)
+        #スライダバーを設定
+        self.contrast_input_sld = QSlider(Qt.Horizontal)
+        self.contrast_input_sld.setRange(-100, 100)
+        contrast_layout.addWidget(self.contrast_input_sld)
+        #スライダーとボックスの値をコネクト
+        self.contrast_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
+        self.contrast_input.wheeled.connect(lambda : self.store_keypress(True))
+        self.contrast_input.wheeled.connect(lambda : self.contrast_input_sld.setValue(self.contrast_input.value()))
+        self.contrast_input.editingFinished.connect(lambda : self.contrast_input_sld.setValue(self.contrast_input.value()))
+        self.contrast_input.focused.connect(lambda : self.store_keypress(False))
+        self.contrast_input.keypressed.connect(lambda : self.store_keypress(True))
+        self.contrast_input_sld.valueChanged[int].connect(self.contrast_input.setValue)
+        self.contrast_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='contrast'))
+        self.contrast_input_sld.sliderReleased.connect(self.hsv_sld_released)
+        
+        self.main_layout.addWidget(qt.make_h_line())
         
         #--------------------------------------------------------------------------------------------
         msg_layout = QHBoxLayout()
@@ -787,17 +982,317 @@ class MainWindow(qt.MainWindow):
         self.create_job()
         self.change_add_mode(id=self.mode)
         
+    #hsvスライダリリース時の特殊処理
+    restore_flag = False
+    def hsv_sld_pressed(self):
+        self.pushed_data = copy.copy(self._data)
+        self.pushed_hue_value = self.pre_pre_hue_value
+        self.pushed_saturation_value = self.pre_pre_saturation_value
+        self.pushed_value_value = self.pre_pre_value_value
+        self.pushed_contrast_value = self.pre_pre_contrast_value
+        self.change_flag = True#スライダー操作中のみ値の変更を許可するフラグ
+        
+    #hsvスライダリリース時の特殊処理
+    restore_flag = False
+    def hsv_sld_released(self):
+        self.change_flag = False
+        #self.change_color_hsv()
+        self.bake_vertex_color(realbake=False, ignoreundo=False)
+        cmds.undoInfo(closeChunk=True)
+    
+    pre_hue_value = 0.0
+    pre_saturation_value = 0.0
+    pre_value_value = 0.0
+    pre_contrast_value = 0.0
+    pre_pre_hue_value = 0.0
+    pre_pre_saturation_value = 0.0
+    pre_pre_value_value = 0.0
+    pre_pre_contrast_value = 0.0
+    bake_times = 0
+    def change_color_hsv(self, mode='hue'):
+        if mode == 'hue':
+            if self.hue_input.value() == self.pre_hue_value:
+                print 'same hue values return :'
+                return
+                
+        if mode == 'saturation':
+            if self.saturation_input.value() == self.pre_saturation_value:
+                print 'same saturation values return :'
+                return
+                
+        if mode == 'value':
+            if self.value_input.value() == self.pre_value_value:
+                print 'same value values return :'
+                return
+                
+        if mode == 'contrast':
+            if self.contrast_input.value() == self.pre_contrast_value:
+                print 'same value values return :'
+                return
+                
+        if self.restore_flag :
+            print 'restore_sld return :'
+            self.pre_hue_value = self.hue_input.value()
+            self.pre_saturation_value = self.saturation_input.value()
+            self.pre_value_value = self.value_input.value() / 255.0
+            self.pre_contrast_value = self.contrast_input.value()
+            self.restore_flag = False
+            return
+            
+        if not self.selected_items:
+            all_rows = list(set(xrange(self.all_rows))-set(self.mesh_rows))
+        else:
+            all_rows = set([item.row()  for item in self.selected_items])
+            
+            
+        if self.change_flag:
+            contrast_value = (self.contrast_input.value() - self.pushed_contrast_value) / 50.0 + 1.0
+            hue_value = self.hue_input.value() - self.pushed_hue_value
+            saturation_value = self.saturation_input.value() - self.pushed_saturation_value
+            value_value = self.value_input.value()  / 255.0 - self.pushed_value_value
+        else:
+            contrast_value = (self.contrast_input.value() - self.pre_contrast_value) / 50.0 + 1.0
+            hue_value = self.hue_input.value() - self.pre_hue_value
+            saturation_value = self.saturation_input.value() - self.pre_saturation_value
+            value_value = self.value_input.value()  / 255.0 - self.pre_value_value
+        #HSVに直してから再計算
+        for row in all_rows:
+            node, vid = self.get_row_vf_node_data(row)
+            if self.change_flag:
+                org_colors = [col for col in self.pushed_data[row][0:3]]
+            else:
+                org_colors = [col for col in self._data[row][7]]
+            temp_rgb = org_colors[:3]
+            hue, saturation, value = self.rgb2hsv(temp_rgb)
+            if mode == 'contrast':
+                for rgba in range(3):
+                    offset = 0
+                    col = org_colors[rgba] - 0.5
+                    if col < 0 and contrast_value < 0:
+                        max_value = 0.5
+                    else:
+                        max_value = 1.0
+                    if col >= 0 and contrast_value < 0:
+                        min_value = 0.5
+                    else:
+                        min_value = 0.0
+                    if col == 0:
+                        col = 0.004
+                        offset = 0.004
+                    col = col * contrast_value + 0.5
+                    col = min([1.0, max([0, col])])
+                    col = min([max_value, max([min_value, col])])
+                    self.mesh_color_dict[node][vid][rgba] = col 
+            else:
+                if mode == 'hue':
+                    hue += hue_value
+                elif mode == 'saturation':
+                    if len(set(temp_rgb)) != 1 :
+                        saturation += saturation_value
+                        saturation = max([0, saturation])
+                        saturation = min([255, saturation])
+                elif mode == 'value':
+                    value += value_value
+                new_rgb = self.hsv2rgb(hue, saturation, value)
+                if mode == 'value':
+                    new_rgb = [min([1.0, max([0, rgb])]) for rgb in new_rgb]
+                #メッシュ辞書の値を更新するだけでよい
+                for rgba in range(3):
+                    self.mesh_color_dict[node][vid][rgba] = new_rgb[rgba]
+                
+        #焼きこみ
+        #print 'bake times :', self.bake_times, self.change_flag
+        self.bake_times += 1
+        
+        if not self.key_pressed  and not self.change_flag:
+            print 'slider press in beking func :'
+            cmds.undoInfo(openChunk=True)
+            #self.bake_vertex_color(realbake=False, ignoreundo=True)
+            #self.change_flag = True
+        if self.channel_but_group.checkedId() == 0:
+            self.bake_vertex_color(realbake=True, ignoreundo=self.change_flag)#焼き付け実行
+        else:
+            self.bake_vertex_color(realbake=False, ignoreundo=self.change_flag)#アンドゥ履歴だけ残しにいく。実際のベイクはしない。
+            self.change_view_channel()
+        
+        #スライダー復帰のために前々回入力を保持
+        self.pre_pre_hue_value = self.pre_hue_value
+        self.pre_pre_saturation_value = self.pre_saturation_value
+        self.pre_pre_value_value = self.pre_value_value
+        self.pre_pre_contrast_value = self.pre_contrast_value
+            
+        self.pre_hue_value = self.hue_input.value()
+        self.pre_saturation_value = self.saturation_input.value()
+        self.pre_value_value = self.value_input.value() / 255.0
+        self.pre_contrast_value = self.contrast_input.value()
+        
+    sel_model_init_flag = False
+    def restore_hsv_sld_value(self):
+        print 'restore_hsv_value :', self.sel_model_init_flag
+        if self.sel_model_init_flag:
+            self.restore_flag = False
+            self.sel_model_init_flag = False
+        else:
+            self.restore_flag = True
+            self.hue_input_sld.setValue(0)
+            self.restore_flag = True
+            self.saturation_input_sld.setValue(0)
+            self.restore_flag = True
+            self.value_input_sld.setValue(0)
+            self.restore_flag = True
+            self.contrast_input_sld.setValue(0)
+            self.pre_hue_value = 0.0
+            self.pre_saturation_value = 0.0
+            self.pre_value_value = 0.0
+            self.pre_contrast_value = 0.0
+            self.pre_pre_hue_value = 0.0
+            self.pre_pre_saturation_value = 0.0
+            self.pre_pre_value_value = 0.0
+            self.pre_pre_contrast_value = 0.0
+            
+    def hsv2rgb(self, hue, saturation, value):
+        max_rgb = value
+        min_rgb = max_rgb - ((saturation / 255) * max_rgb)
+        if hue < 0:
+            hue += 360
+        elif hue > 360:
+            hue -= 360
+            
+        if 0 <= hue <= 60:
+            r = max_rgb
+            g = (hue / 60) * (max_rgb - min_rgb) + min_rgb
+            b= min_rgb
+        elif 60 < hue <= 120:
+            r = ((120 - hue) / 60) * (max_rgb - min_rgb) + min_rgb
+            g = max_rgb
+            b= min_rgb
+        elif 120 < hue <= 180:
+            r = min_rgb
+            g = max_rgb
+            b= ((hue - 120) / 60) * (max_rgb - min_rgb) + min_rgb
+        elif 180 < hue <= 240:
+            r = min_rgb
+            g = ((240 - hue) / 60) * (max_rgb - min_rgb) + min_rgb
+            b = max_rgb
+        elif 240 < hue <= 300:
+            r= ((hue - 240) / 60) * (max_rgb - min_rgb) + min_rgb
+            g= min_rgb
+            b = max_rgb
+        elif 300 < hue <= 360:
+            r = max_rgb
+            g= min_rgb
+            b = ((360 - hue) / 60) * (max_rgb - min_rgb) + min_rgb
+        #print r, g, b
+        return [r, g, b]
+        
+    #rgbをhsvに変換して返す
+    def rgb2hsv(self, rgb):
+        hue =0 
+        #rgb = map(lambda c : c*255, rgb)
+        max_rgb = max(rgb)
+        min_rgb = min(rgb)
+        if len(set(rgb)) == 1:
+            hue = 0
+        else:
+            if rgb[0] == max_rgb:
+                hue = 60 * ((rgb[1] - rgb [2]) / (max_rgb - min_rgb))
+            elif rgb[1] == max_rgb:
+                hue = 60 * ((rgb[2] - rgb [0]) / (max_rgb - min_rgb)) + 120
+            elif rgb[2] == max_rgb:
+                hue = 60 * ((rgb[0] - rgb [1]) / (max_rgb - min_rgb)) + 240
+        if hue < 0:
+            hue += 360
+        
+        if max_rgb != 0.0:
+            saturation = (max_rgb - min_rgb) / max_rgb * 255
+        else:
+            saturation = 0.0
+        
+        value = max_rgb
+        #print  hue, saturation, value
+        return hue, saturation, value
+    
+    #カラーダイアログを開く
+    def open_color_dialog(self):
+        self.colorDialog = QColorDialog()
+        color = map(lambda c : int(c*255), self.copy_colors)[0:3]
+        self.colorDialog.setCurrentColor(QColor(*color))
+        #カスタムカラー取得
+        if os.path.exists(self.custom_color_path):#保存ファイルが存在したら
+            with open(self.custom_color_path, 'r') as f:
+                self.custom_color = json.load(f)
+            #カスタムカラーを設定する
+            for i, c in self.custom_color.items():
+                self.colorDialog.setCustomColor(int(i), c)
+        response = self.colorDialog.exec_()
+        if response != QDialog.Accepted:
+            return
+        chosen = self.colorDialog.currentColor()
+        color = [chosen.red(), chosen.green(), chosen.blue()]
+        qt.change_button_color(self.color_but, textColor=0, bgColor=color, hiColor=color, 
+                                            mode='button', hover=False, destroy=True)
+        self.copy_colors = map(lambda c : c/255.0, color) + [self.copy_colors[3]]
+        #カスタムカラー保存--------------------------------
+        costom_colors = {}
+        for i in range(17):
+            #print 'save change custom color :', self.colorDialog.customColor(i)
+            costom_colors[i] = self.colorDialog.customColor(i)
+        with open(self.custom_color_path, 'w') as f:
+            #print 'save'
+            json.dump(costom_colors, f)
+        
+    #カラーのコピー
+    copy_colors = [0.502, 0.502, 0.502, 1.0]
+    def copy_color(self):
+        if self.selected_items:
+            row = self.selected_items[0].row()
+        else:
+            selectable_rows = list(set(xrange(self.all_rows))-set(self.mesh_rows))
+            if not selectable_rows:
+                return
+            row = selectable_rows[0]
+        self.copy_colors = [col for col in self._data[row][7]]
+        color = map(lambda c : int(c*255), self.copy_colors)[0:3]
+        qt.change_button_color(self.color_but, textColor=0, bgColor=color, hiColor=color, 
+                                            mode='button', hover=False, destroy=True)
+                      
+    #カラーのペースト
+    def paste_color(self, alpha=False):
+        copy_colors = self.copy_colors[:]
+        if not self.selected_items:
+            all_rows = list(set(xrange(self.all_rows))-set(self.mesh_rows))
+        else:
+            all_rows = set([item.row()  for item in self.selected_items])
+        for row in all_rows:
+            node, vid = self.get_row_vf_node_data(row)
+            if alpha:
+                color_num = 4
+            else:
+                org_colors = [col for col in self._data[row][7]]
+                copy_colors[3] = org_colors[3]
+                color_num = 3
+            #メッシュ辞書の値を更新するだけでよい
+            for rgba in range(color_num):
+                self.mesh_color_dict[node][vid][rgba] = copy_colors[rgba]
+        #焼きこみ
+        if self.channel_but_group.checkedId() == 0:
+            self.bake_vertex_color(realbake=True, ignoreundo=self.change_flag)#焼き付け実行
+        else:
+            self.bake_vertex_color(realbake=False, ignoreundo=self.change_flag)#アンドゥ履歴だけ残しにいく。実際のベイクはしない。
+            self.change_view_channel()
+            
+     #ロックボタン解除されたら更新する
     def check_unlock(self):
         if not self.lock_but.isChecked():
             self.get_set_vertex_color()
         
     #ウェイト入力窓を選択するジョブ
-    def sel_all_weight_input(self):
-        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
+    def sel_all_weight_input(self, widget=None):
+        cmds.scriptJob(ro=True, e=("idle", lambda : self.select_box_all(widget=widget)), protected=True)
         
-    def select_box_all(self):
+    def select_box_all(self, widget=None):
         try:
-            self.weight_input.selectAll()
+            widget.selectAll()
         except:
             pass
             
@@ -1014,6 +1509,7 @@ class MainWindow(qt.MainWindow):
             
         self.counter.reset()
         
+        
         self.pre_mesh_color_dict = {}
         for mesh, color_list in self.mesh_color_dict.items():
             self.pre_mesh_color_dict[mesh] = color_list[:]
@@ -1033,6 +1529,7 @@ class MainWindow(qt.MainWindow):
                 self.hl_nodes = common.search_polygon_mesh(self.hl_nodes, fullPath=True)
                 self.hl_nodes = list(set(self.hl_nodes))
             if sel_vertices is None:
+                self.sel_vertices_dict = defaultdict(lambda : [])
                 sel_vertices = []
                 #現在選択している頂点を取得
                 sList = om2.MGlobal.getActiveSelectionList()
@@ -1081,6 +1578,7 @@ class MainWindow(qt.MainWindow):
                     cur_color_set = cur_color_set_list[0]
                 
                 mesh_vtx_colors = meshFn.getFaceVertexColors(cur_color_set)
+                
                 #色変更のために辞書格納しておく
                 if self.channel_but_group.checkedId() == 0 or not node in self.pre_hl_nodes:
                     self.mesh_color_dict[meshTr.fullPathName()] = mesh_vtx_colors
@@ -1161,8 +1659,16 @@ class MainWindow(qt.MainWindow):
         
         self.sel_model = QItemSelectionModel(self.color_model)#選択モデルをつくる
         self.sel_model.selectionChanged.connect(self.cell_changed)#シグナルをつなげておく
+        self.sel_model.selectionChanged.connect(self.restore_hsv_sld_value)#シグナルをつなげておく
         self.view_widget.setModel(self.color_model)#表示用モデル設定
         self.view_widget.setSelectionModel(self.sel_model)#選択用モデルを設定
+        
+        #HSBスライダーをリセット
+        self.sel_model_init_flag = False
+        self.restore_hsv_sld_value()
+        self.sel_model_init_flag = True
+        self.restore_flag = False
+        
         self.set_color_channel()
         #カラーチャンネル変更があったらリセット
         self.reset_color_channel()
@@ -1489,7 +1995,11 @@ class MainWindow(qt.MainWindow):
     #@timer
     def bake_vertex_color(self, realbake=True, ignoreundo=False):
         #APIでアンドゥ実装したカスタムコマンドのためにグローバル空間に値を保持しておく
-        set_current_data(self.hl_nodes, self.mesh_color_dict, self.org_mesh_color_dict, self.temp_vf_face_dict, self.temp_vf_vtx_dict)
+        bake_color_dict = {}
+        #リドゥが正しく聞くように参照形式から切り離したリストを渡す
+        for mesh, color_list in self.mesh_color_dict.items():
+            bake_color_dict[mesh] = color_list[:]
+        set_current_data(self.hl_nodes, bake_color_dict, self.mesh_color_dict, self.org_mesh_color_dict, self.temp_vf_face_dict, self.temp_vf_vtx_dict)
         cmds.bakeVertexColor(rb=realbake, iu=ignoreundo)
         #アンドゥ履歴用カラーを更新しておく
         self.org_mesh_color_dict = {}
@@ -1838,12 +2348,14 @@ def refresh_window():
     window.get_set_vertex_color(cycle=True)
         
 #焼き込みコマンドに渡すためにグローバルに要素を展開
-def set_current_data(nodes, color, org_color, face, vtx):
+def set_current_data(nodes, bake_color, color, org_color, face, vtx):
     global hl_nodes
+    global bake_color_dict
     global color_dict
     global org_color_dict
     global face_dict
     global vtx_dict
+    bake_color_dict = bake_color
     hl_nodes = nodes
     color_dict = color
     org_color_dict = org_color
@@ -1852,11 +2364,12 @@ def set_current_data(nodes, color, org_color, face, vtx):
 
 def get_current_data():
     global hl_nodes
+    global bake_color_dict
     global color_dict
     global org_color_dict
     global face_dict
     global vtx_dict
-    return hl_nodes, color_dict, org_color_dict, face_dict, vtx_dict
+    return hl_nodes, bake_color_dict, color_dict, org_color_dict, face_dict, vtx_dict
     
 # index :Noneの場合全列処理
 #@prof.profileFunction()
