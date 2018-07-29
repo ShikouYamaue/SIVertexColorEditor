@@ -99,3 +99,27 @@ Mayaのバーテックスカラーペイント機能とチャンネル切替で�
 RGBAチャンネル各独立してグレースケールでペイントするなど。  
 
 ![vetexcoloreditor](https://user-images.githubusercontent.com/28256498/42763047-e75f3e2e-894c-11e8-8b21-f0004283065b.gif)
+
+###カラーのコピーペースト
+
+選択カラーのコピーペーストができます。  
+
+ペーストボタン左クリック→RGBチャンネルのみペースト  
+
+ペーストボタン右クリック→RGB+Alphaチャンネルペースト  
+
+カラーボタンクリックでカラーダイアログを開いて設定もできます。  
+
+![veretex9](https://user-images.githubusercontent.com/28256498/43366534-622248b8-937a-11e8-8ed3-3c14039faeca.gif)
+
+###HSV調整、コントラスト、乗算調整
+
+スライダで各パラメータ調整ができます。
+
+H → 色相
+S → 再度
+V → 明度
+C → コントラスト
+M → 乗算
+
+![veretex10](https://user-images.githubusercontent.com/28256498/43366549-8eb6310a-937a-11e8-8dcb-83c5cd355432.gif)
