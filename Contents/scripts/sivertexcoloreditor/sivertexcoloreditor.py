@@ -39,7 +39,7 @@ except ImportError:
 #b1.0.3 ペイントのリアルタイム検出
 #b1.0.4 書き込み高速化10倍、不具合修正、カラーセットエディタ起動ボタン
 #b1.0.5 不具合修正
-VERSION = 'b1.0.6'
+VERSION = 'b1.0.7'
 
 #速度計測結果を表示するかどうか
 COUNTER_PRINT = True
@@ -840,20 +840,25 @@ class MainWindow(qt.MainWindow):
         self.main_layout.addWidget(self.view_widget)
         
         #Hueスライダー作成----------------------------------------------------------------
-        hue_layout = QHBoxLayout()
-        self.main_layout.addLayout(hue_layout)
+        hs_layout = QHBoxLayout()
+        self.main_layout.addLayout(hs_layout)
         
-        label = QLabel('         Hue - ')
+        hue_layout = QHBoxLayout()
+        hs_layout.addLayout(hue_layout)
+        
+        label = QLabel('H - ')
         hue_layout.addWidget(label)
         
         self.hue_input = EditorSpinbox()#スピンボックス
         self.hue_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.hue_input.setRange(-180, 180)
-        self.hue_input.setValue(0.0)#値を設定
+        self.hue_input.setValue(0.0)#値
+        self.hue_input.setToolTip('Hue')
         hue_layout.addWidget(self.hue_input)
         #スライダバーを設定
         self.hue_input_sld = QSlider(Qt.Horizontal)
         self.hue_input_sld.setRange(-180, 180)
+        self.hue_input_sld.setToolTip('Hue')
         hue_layout.addWidget(self.hue_input_sld)
         #スライダーとボックスの値をコネクト
         self.hue_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -866,20 +871,23 @@ class MainWindow(qt.MainWindow):
         self.hue_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='hue'))
         self.hue_input_sld.sliderReleased.connect(self.hsv_sld_released)
         
+        hs_layout.addWidget(qt.make_v_line())
         #saturationスライダー作成----------------------------------------------------------------
         saturation_layout = QHBoxLayout()
-        self.main_layout.addLayout(saturation_layout)
-        label = QLabel('Saturation - ')
+        hs_layout.addLayout(saturation_layout)
+        label = QLabel('S - ')
         saturation_layout.addWidget(label)
         
         self.saturation_input = EditorSpinbox()#スピンボックス
         self.saturation_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.saturation_input.setRange(-255, 255)
         self.saturation_input.setValue(0.0)#値を設定
+        self.saturation_input.setToolTip("Saturation")#値を設定
         saturation_layout.addWidget(self.saturation_input)
         #スライダバーを設定
         self.saturation_input_sld = QSlider(Qt.Horizontal)
         self.saturation_input_sld.setRange(-255, 255)
+        self.saturation_input_sld.setToolTip("Saturation")#値を設定
         saturation_layout.addWidget(self.saturation_input_sld)
         #スライダーとボックスの値をコネクト
         self.saturation_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -893,19 +901,24 @@ class MainWindow(qt.MainWindow):
         self.saturation_input_sld.sliderReleased.connect(self.hsv_sld_released)
         
         #Valueスライダー作成----------------------------------------------------------------
+        vc_layout = QHBoxLayout()
+        self.main_layout.addLayout(vc_layout)
+        
         value_layout = QHBoxLayout()
-        self.main_layout.addLayout(value_layout)
-        label = QLabel('       Value - ')
+        vc_layout.addLayout(value_layout)
+        label = QLabel('V - ')
         value_layout.addWidget(label)
         
         self.value_input = EditorSpinbox()#スピンボックス
         self.value_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.value_input.setRange(-255, 255)
         self.value_input.setValue(0.0)#値を設定
+        self.value_input.setToolTip('Value')
         value_layout.addWidget(self.value_input)
         #スライダバーを設定
         self.value_input_sld = QSlider(Qt.Horizontal)
         self.value_input_sld.setRange(-255, 255)
+        self.value_input_sld.setToolTip('Value')
         value_layout.addWidget(self.value_input_sld)
         #スライダーとボックスの値をコネクト
         self.value_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -918,20 +931,23 @@ class MainWindow(qt.MainWindow):
         self.value_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='value'))
         self.value_input_sld.sliderReleased.connect(self.hsv_sld_released)
         
-        #saturationスライダー作成----------------------------------------------------------------
+        vc_layout.addWidget(qt.make_v_line())
+        #contrastスライダー作成----------------------------------------------------------------
         contrast_layout = QHBoxLayout()
-        self.main_layout.addLayout(contrast_layout)
-        label = QLabel('  Contrast - ')
+        vc_layout.addLayout(contrast_layout)
+        label = QLabel('C - ')
         contrast_layout.addWidget(label)
         
         self.contrast_input = EditorSpinbox()#スピンボックス
         self.contrast_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.contrast_input.setRange(-100, 100)
         self.contrast_input.setValue(0.0)#値を設定
+        self.contrast_input.setToolTip('Contrast')
         contrast_layout.addWidget(self.contrast_input)
         #スライダバーを設定
         self.contrast_input_sld = QSlider(Qt.Horizontal)
         self.contrast_input_sld.setRange(-100, 100)
+        self.contrast_input_sld.setToolTip('Contrast')
         contrast_layout.addWidget(self.contrast_input_sld)
         #スライダーとボックスの値をコネクト
         self.contrast_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -943,6 +959,38 @@ class MainWindow(qt.MainWindow):
         self.contrast_input_sld.valueChanged[int].connect(self.contrast_input.setValue)
         self.contrast_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='contrast'))
         self.contrast_input_sld.sliderReleased.connect(self.hsv_sld_released)
+        
+        #multiplyスライダー作成----------------------------------------------------------------
+        m_layout = QHBoxLayout()
+        self.main_layout.addLayout(m_layout)
+        
+        multiply_layout = QHBoxLayout()
+        m_layout.addLayout(multiply_layout)
+        label = QLabel('M - ')
+        multiply_layout.addWidget(label)
+        
+        self.multiply_input = EditorDoubleSpinbox()#スピンボックス
+        self.multiply_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.multiply_input.setRange(0, 5)
+        self.multiply_input.setValue(1.0)#値を設定
+        self.multiply_input.setToolTip('Multiply')
+        multiply_layout.addWidget(self.multiply_input)
+        #スライダバーを設定
+        self.multiply_input_sld = QSlider(Qt.Horizontal)
+        self.multiply_input_sld.setRange(0, 500)
+        self.multiply_input_sld.setValue(100)
+        self.multiply_input_sld.setToolTip('Multiply')
+        multiply_layout.addWidget(self.multiply_input_sld)
+        #スライダーとボックスの値をコネクト
+        self.multiply_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
+        self.multiply_input.wheeled.connect(lambda : self.store_keypress(True))
+        self.multiply_input.wheeled.connect(lambda : self.multiply_input_sld.setValue(self.multiply_input.value()*100))
+        self.multiply_input.editingFinished.connect(lambda : self.multiply_input_sld.setValue(self.multiply_input.value()*100))
+        self.multiply_input.focused.connect(lambda : self.store_keypress(False))
+        self.multiply_input.keypressed.connect(lambda : self.store_keypress(True))
+        self.multiply_input_sld.valueChanged.connect(lambda : self.multiply_input.setValue(self.multiply_input_sld.value()/100.0))
+        self.multiply_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='multiply'))
+        self.multiply_input_sld.sliderReleased.connect(self.hsv_sld_released)
         
         self.main_layout.addWidget(qt.make_h_line())
         
@@ -1004,10 +1052,12 @@ class MainWindow(qt.MainWindow):
     pre_saturation_value = 0.0
     pre_value_value = 0.0
     pre_contrast_value = 0.0
+    pre_multiply_value = 1.0
     pre_pre_hue_value = 0.0
     pre_pre_saturation_value = 0.0
     pre_pre_value_value = 0.0
     pre_pre_contrast_value = 0.0
+    pre_pre_multiply_value = 1.0
     bake_times = 0
     def change_color_hsv(self, mode='hue'):
         if mode == 'hue':
@@ -1030,12 +1080,18 @@ class MainWindow(qt.MainWindow):
                 print 'same value values return :'
                 return
                 
+        if mode == 'multiply':
+            if self.multiply_input.value() == self.pre_multiply_value:
+                print 'same multiply values return :'
+                return
+                
         if self.restore_flag :
             print 'restore_sld return :'
             self.pre_hue_value = self.hue_input.value()
             self.pre_saturation_value = self.saturation_input.value()
             self.pre_value_value = self.value_input.value() / 255.0
             self.pre_contrast_value = self.contrast_input.value()
+            self.pre_multiply_value = self.multiply_input.value()
             self.restore_flag = False
             return
             
@@ -1050,11 +1106,16 @@ class MainWindow(qt.MainWindow):
             hue_value = self.hue_input.value() - self.pushed_hue_value
             saturation_value = self.saturation_input.value() - self.pushed_saturation_value
             value_value = self.value_input.value()  / 255.0 - self.pushed_value_value
+            multiply_value = self.multiply_input.value()
         else:
             contrast_value = (self.contrast_input.value() - self.pre_contrast_value) / 50.0 + 1.0
             hue_value = self.hue_input.value() - self.pre_hue_value
             saturation_value = self.saturation_input.value() - self.pre_saturation_value
             value_value = self.value_input.value()  / 255.0 - self.pre_value_value
+            if self.pre_multiply_value != 0.0:
+                multiply_value = self.multiply_input.value() / self.pre_multiply_value
+            else:
+                multiply_value = self.multiply_input.value()
         #HSVに直してから再計算
         for row in all_rows:
             node, vid = self.get_row_vf_node_data(row)
@@ -1083,6 +1144,11 @@ class MainWindow(qt.MainWindow):
                     col = min([1.0, max([0, col])])
                     col = min([max_value, max([min_value, col])])
                     self.mesh_color_dict[node][vid][rgba] = col 
+            elif mode == 'multiply':
+                for rgba in range(3):
+                    col = org_colors[rgba] * multiply_value
+                    col = min([1.0, max([0, col])])
+                    self.mesh_color_dict[node][vid][rgba] = col
             else:
                 if mode == 'hue':
                     hue += hue_value
@@ -1120,11 +1186,13 @@ class MainWindow(qt.MainWindow):
         self.pre_pre_saturation_value = self.pre_saturation_value
         self.pre_pre_value_value = self.pre_value_value
         self.pre_pre_contrast_value = self.pre_contrast_value
+        self.pre_pre_multiply_value = self.pre_multiply_value
             
         self.pre_hue_value = self.hue_input.value()
         self.pre_saturation_value = self.saturation_input.value()
         self.pre_value_value = self.value_input.value() / 255.0
         self.pre_contrast_value = self.contrast_input.value()
+        self.pre_multiply_value = self.multiply_input.value()
         
     sel_model_init_flag = False
     def restore_hsv_sld_value(self):
@@ -1141,14 +1209,18 @@ class MainWindow(qt.MainWindow):
             self.value_input_sld.setValue(0)
             self.restore_flag = True
             self.contrast_input_sld.setValue(0)
+            self.restore_flag = True
+            self.multiply_input_sld.setValue(100.0)
             self.pre_hue_value = 0.0
             self.pre_saturation_value = 0.0
             self.pre_value_value = 0.0
             self.pre_contrast_value = 0.0
+            self.pre_multiply_value = 1.0
             self.pre_pre_hue_value = 0.0
             self.pre_pre_saturation_value = 0.0
             self.pre_pre_value_value = 0.0
             self.pre_pre_contrast_value = 0.0
+            self.pre_pre_multiply_value = 1.0
             
     def hsv2rgb(self, hue, saturation, value):
         max_rgb = value
