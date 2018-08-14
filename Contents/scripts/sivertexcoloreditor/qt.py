@@ -250,7 +250,7 @@ def change_border_style(button):
                                     'QPushButton:pressed{border-style:solid; border-width: 2px; border-color: red ; border-radius: 1px;}')
 
 #ボタンカラーを変更する関数
-def change_button_color(button, textColor=200, bgColor=68, hiColor=68, hiText=255, hiBg=[97, 132, 167], dsColor=[255, 128, 128],
+def change_button_color(button, textColor=200, bgColor=68, hiColor=68, hiText=255, hiBg=[97, 132, 167], dsColor=180,
                                         mode='common', toggle=False, hover=True, destroy=False, dsWidth=1):
     '''引数
     button 色を変えたいウィジェットオブジェクト

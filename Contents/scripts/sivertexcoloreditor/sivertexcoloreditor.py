@@ -39,6 +39,7 @@ except ImportError:
 #b1.0.3 ペイントのリアルタイム検出
 #b1.0.4 書き込み高速化10倍、不具合修正、カラーセットエディタ起動ボタン
 #b1.0.5 不具合修正
+#b1.0.7 表示チャンネル変更したままカラーセットの選択変更に対応
 VERSION = 'b1.0.7'
 
 #速度計測結果を表示するかどうか
@@ -749,8 +750,8 @@ class MainWindow(qt.MainWindow):
         copy_layout = QHBoxLayout()
         copy_layout.setSpacing(0)#ウェジェットどうしの間隔を設定する
         copy_widget.setLayout(copy_layout)
-        but_w = 45
-        widget_w = 150
+        but_w = 40
+        widget_w = 240
         copy_widget.setMinimumWidth(widget_w)
         copy_widget.setMaximumWidth(widget_w)
         copy_widget.setMaximumHeight(WIDGET_HEIGHT)
@@ -771,8 +772,15 @@ class MainWindow(qt.MainWindow):
                                                     flat=True, hover=False, checkable=False, destroy_flag=True, tip=tip)
         self.color_but.clicked.connect(self.open_color_dialog)
         copy_layout.addWidget(self.color_but)
-        self.but_list.append(copy_widget)
+        rgba_text = self.make_rgba_text(self.copy_colors)
+        but_w = 110
+        self.rgb_value_but = qt.make_flat_btton(name=rgba_text, text=160, bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
+        copy_layout.addWidget(self.rgb_value_but)
+        self.rgb_value_but.setDisabled(True)#無効化
+        copy_layout.addWidget(self.rgb_value_but)
         
+        self.but_list.append(copy_widget)
         
         #追加ツール群
         tool_widget = QWidget()
@@ -849,16 +857,17 @@ class MainWindow(qt.MainWindow):
         label = QLabel('H - ')
         hue_layout.addWidget(label)
         
+        tip = lang.Lang(en='Hue', ja=u'Hue / 色相').output()
         self.hue_input = EditorSpinbox()#スピンボックス
         self.hue_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.hue_input.setRange(-180, 180)
         self.hue_input.setValue(0.0)#値
-        self.hue_input.setToolTip('Hue')
+        self.hue_input.setToolTip(tip)
         hue_layout.addWidget(self.hue_input)
         #スライダバーを設定
         self.hue_input_sld = QSlider(Qt.Horizontal)
         self.hue_input_sld.setRange(-180, 180)
-        self.hue_input_sld.setToolTip('Hue')
+        self.hue_input_sld.setToolTip(tip)
         hue_layout.addWidget(self.hue_input_sld)
         #スライダーとボックスの値をコネクト
         self.hue_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -878,16 +887,17 @@ class MainWindow(qt.MainWindow):
         label = QLabel('S - ')
         saturation_layout.addWidget(label)
         
+        tip = lang.Lang(en='Saturation', ja=u'Saturation / 彩度').output()
         self.saturation_input = EditorSpinbox()#スピンボックス
         self.saturation_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.saturation_input.setRange(-255, 255)
         self.saturation_input.setValue(0.0)#値を設定
-        self.saturation_input.setToolTip("Saturation")#値を設定
+        self.saturation_input.setToolTip(tip)#値を設定
         saturation_layout.addWidget(self.saturation_input)
         #スライダバーを設定
         self.saturation_input_sld = QSlider(Qt.Horizontal)
         self.saturation_input_sld.setRange(-255, 255)
-        self.saturation_input_sld.setToolTip("Saturation")#値を設定
+        self.saturation_input_sld.setToolTip(tip)#値を設定
         saturation_layout.addWidget(self.saturation_input_sld)
         #スライダーとボックスの値をコネクト
         self.saturation_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -913,12 +923,13 @@ class MainWindow(qt.MainWindow):
         self.value_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.value_input.setRange(-255, 255)
         self.value_input.setValue(0.0)#値を設定
-        self.value_input.setToolTip('Value')
+        tip = lang.Lang(en='Value', ja=u'Value / 明度').output()
+        self.value_input.setToolTip(tip)
         value_layout.addWidget(self.value_input)
         #スライダバーを設定
         self.value_input_sld = QSlider(Qt.Horizontal)
         self.value_input_sld.setRange(-255, 255)
-        self.value_input_sld.setToolTip('Value')
+        self.value_input_sld.setToolTip(tip)
         value_layout.addWidget(self.value_input_sld)
         #スライダーとボックスの値をコネクト
         self.value_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -942,12 +953,13 @@ class MainWindow(qt.MainWindow):
         self.contrast_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.contrast_input.setRange(-100, 100)
         self.contrast_input.setValue(0.0)#値を設定
-        self.contrast_input.setToolTip('Contrast')
+        tip = lang.Lang(en='Contrast', ja=u'Contrast / コントラスト').output()
+        self.contrast_input.setToolTip(tip)
         contrast_layout.addWidget(self.contrast_input)
         #スライダバーを設定
         self.contrast_input_sld = QSlider(Qt.Horizontal)
         self.contrast_input_sld.setRange(-100, 100)
-        self.contrast_input_sld.setToolTip('Contrast')
+        self.contrast_input_sld.setToolTip(tip)
         contrast_layout.addWidget(self.contrast_input_sld)
         #スライダーとボックスの値をコネクト
         self.contrast_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -973,13 +985,14 @@ class MainWindow(qt.MainWindow):
         self.multiply_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.multiply_input.setRange(0, 5)
         self.multiply_input.setValue(1.0)#値を設定
-        self.multiply_input.setToolTip('Multiply')
+        tip = lang.Lang(en='Multiply', ja=u'Multiply / 乗算').output()
+        self.multiply_input.setToolTip(tip)
         multiply_layout.addWidget(self.multiply_input)
         #スライダバーを設定
         self.multiply_input_sld = QSlider(Qt.Horizontal)
         self.multiply_input_sld.setRange(0, 500)
         self.multiply_input_sld.setValue(100)
-        self.multiply_input_sld.setToolTip('Multiply')
+        self.multiply_input_sld.setToolTip(tip)
         multiply_layout.addWidget(self.multiply_input_sld)
         #スライダーとボックスの値をコネクト
         self.multiply_input_sld.sliderPressed.connect(self.hsv_sld_pressed)
@@ -1029,6 +1042,7 @@ class MainWindow(qt.MainWindow):
         self.get_set_vertex_color()#起動時に取得実行
         self.create_job()
         self.change_add_mode(id=self.mode)
+        
         
     #hsvスライダリリース時の特殊処理
     restore_flag = False
@@ -1086,7 +1100,7 @@ class MainWindow(qt.MainWindow):
                 return
                 
         if self.restore_flag :
-            print 'restore_sld return :'
+            #print 'restore_sld return :'
             self.pre_hue_value = self.hue_input.value()
             self.pre_saturation_value = self.saturation_input.value()
             self.pre_value_value = self.value_input.value() / 255.0
@@ -1171,7 +1185,7 @@ class MainWindow(qt.MainWindow):
         self.bake_times += 1
         
         if not self.key_pressed  and not self.change_flag:
-            print 'slider press in beking func :'
+            #print 'slider press in beking func :'
             cmds.undoInfo(openChunk=True)
             #self.bake_vertex_color(realbake=False, ignoreundo=True)
             #self.change_flag = True
@@ -1196,7 +1210,7 @@ class MainWindow(qt.MainWindow):
         
     sel_model_init_flag = False
     def restore_hsv_sld_value(self):
-        print 'restore_hsv_value :', self.sel_model_init_flag
+        #print 'restore_hsv_value :', self.sel_model_init_flag
         if self.sel_model_init_flag:
             self.restore_flag = False
             self.sel_model_init_flag = False
@@ -1313,6 +1327,11 @@ class MainWindow(qt.MainWindow):
             #print 'save'
             json.dump(costom_colors, f)
         
+    def make_rgba_text(self, colors):
+        text_list = [str(int(color*255)) for color in colors]
+        text = ':'.join(text_list)
+        return text
+        
     #カラーのコピー
     copy_colors = [0.502, 0.502, 0.502, 1.0]
     def copy_color(self):
@@ -1327,6 +1346,8 @@ class MainWindow(qt.MainWindow):
         color = map(lambda c : int(c*255), self.copy_colors)[0:3]
         qt.change_button_color(self.color_but, textColor=0, bgColor=color, hiColor=color, 
                                             mode='button', hover=False, destroy=True)
+        rgba_text = self.make_rgba_text(self.copy_colors)
+        self.rgb_value_but.setText(rgba_text)
                       
     #カラーのペースト
     def paste_color(self, alpha=False):
@@ -1632,6 +1653,8 @@ class MainWindow(qt.MainWindow):
         self.pre_sel_vertices = sel_vertices
         self.counter.count(string='get mesh vtx :')
         
+        #カラーセットが切り替えられたときにRGB復旧する用の辞書
+        self.current_color_dict = {}
         if not reselect:
             for node in self.hl_nodes[:]:
                 sList = om2.MSelectionList()
@@ -1648,7 +1671,7 @@ class MainWindow(qt.MainWindow):
                     continue
                 else:
                     cur_color_set = cur_color_set_list[0]
-                
+                self.current_color_dict[node] = cur_color_set
                 mesh_vtx_colors = meshFn.getFaceVertexColors(cur_color_set)
                 
                 #色変更のために辞書格納しておく
@@ -1764,7 +1787,6 @@ class MainWindow(qt.MainWindow):
     
     #コンポーネント選択、メッシュ選択をアレイに変換して返す
     def convert_comp_to_fv_list(self, meshDag, meshFn, component):
-                
         fv_array = []
         f_array = []
         v_array = []
@@ -2130,7 +2152,7 @@ class MainWindow(qt.MainWindow):
         if change_node:#選択が変わったときの変更処理
             target_nodes = change_node
             if self.channel_but_group.checkedId() == 0:
-                #print 'not need reset return :'
+                #print 'not need reset channel return :'
                 return
             mesh_color_dict = self.mesh_color_dict
         else:#UIからの変更処理
@@ -2144,6 +2166,7 @@ class MainWindow(qt.MainWindow):
             self.reset_to_rgba(target_nodes, self.pre_channel_id)
         else:
             for node in target_nodes:
+                #print 'change view channel :', node
                 vertices = self.node_vertex_dict[node]
                 if not vertices:
                     continue
@@ -2179,6 +2202,7 @@ class MainWindow(qt.MainWindow):
         
     #各チャンネルの変更を考慮してオリジナルチャンネルに復旧する
     def reset_to_rgba(self, target_nodes, pre_id):
+        #print 'reset to rgba', target_nodes
         rgba_id = pre_id - 2
         for node in target_nodes:
             #print 'reset to origin :', node, pre_id
@@ -2229,8 +2253,6 @@ class MainWindow(qt.MainWindow):
         for node in selection:
             shape = cmds.listRelatives(node, s=True, f=True)
             color_hist = cmds.ls(cmds.listHistory(node), type='polyColorPerVertex')
-            
-            
             if shape:
                 try:
                     job = cmds.scriptJob(attributeChange=[shape[0] + '.colorSet[0].representation', self.update_colors])
@@ -2245,14 +2267,24 @@ class MainWindow(qt.MainWindow):
                     pass
                     
     #ペイント、セット変更の更新をUIに反映する
-    def update_colors(self):
+    up_count = 0
+    def update_colors(self, nodes=None, force=False, id=None):
+        if self.restore_rgb_flag and not force:
+            #print 'update colors in restore_rgb_colors , restore flag return :'
+            return
         #アクティブウィンドウが自分自身ならアップデート不要なので逃げる
         if QApplication.activeWindow() == self:
+            #print 'active window is self return :'
             return
+        #print 'update_colors **-*-*-*-*-', self.up_count, nodes
+        self.up_count += 1
         #print 'update color data :'
-        id = self.channel_but_group.checkedId()
+        if id is None:
+            id = self.channel_but_group.checkedId()
         loop_list = [range(4), range(3), [0], [1], [2], [3]][id]
-        for node in self.hl_nodes:
+        if nodes is None:
+            nodes = self.hl_nodes
+        for node in nodes:
             sList = om2.MSelectionList()
             sList.add(node)
             dagPath, component = sList.getComponent(0)
@@ -2275,25 +2307,84 @@ class MainWindow(qt.MainWindow):
             
     #カラージョブを破棄する
     def kill_color_job(self):
+        #print 'kill color job :', self.color_job_list
         for job in self.color_job_list:
             #print 'kill color job :', job
             cmds.scriptJob(k=job, f=True)
         self.color_job_list = list()
         
+    def kill_reset_color_job(self):
+        #print 'kill reset_color job :', self.reset_job_list
+        for job in self.reset_job_list:
+            #print 'kill reset color job :', job
+            cmds.scriptJob(k=job, f=True)
+        self.reset_job_list = list()
+        
     #カレントカラーセット切替ジョブ
     reset_job_list = list()
+    color_job_group_id = 0#アトリビュート重複で複数回回らないように管理するID
     def reset_color_job(self):
+        self.kill_reset_color_job()#一旦全部無効化する
         for node in self.hl_nodes:
-            #print 'currentColorSetJob :', node
+            #print 'create currentColorSetJob :', node
             try:
                 shape = cmds.listRelatives(node, s=True, f=True)
             except:
                 continue
             job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.create_color_job])
             self.reset_job_list.append(job)
-            job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.update_colors])
+            #job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.update_colors])
+            #self.reset_job_list.append(job)
+            job = cmds.scriptJob(attributeChange=[shape[0] + '.currentColorSet', self.restore_rgb_colors])
             self.reset_job_list.append(job)
+    
+    #カレントカラーが切り替えられたとき、RGBカラーを正しく復旧しておく
+    reset_times = 0
+    restore_rgb_flag = False
+    def restore_rgb_colors(self):
+        self.restore_rgb_flag = True#カラーレストア中は変更再適用しないフラグ
+        #print self.restore_rgb_flag
+        #self.kill_reset_color_job()#カラージョブ一旦無効
+        #print 'restore rgb color :', '/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*', self.reset_times
+        cur_color_set_dict = {}#一時変更したカレントカラーセットをもとに戻す辞書
+        for node in self.hl_nodes:
+            pre_color_set = self.current_color_dict[node]
+            #print 'pre cor color set :', node, pre_color_set
+            cur_color_set_list = cmds.polyColorSet(node, q=True, currentColorSet=True)
+            #現在のカラーセットがなければスルー
+            if cur_color_set_list == None:
+                continue
+            else:
+                cur_color_set = cur_color_set_list[0]
+                #print 'changed cor color set :', node, cur_color_set
+            #現在と変更前が同じだったらスルー
+            if cur_color_set == pre_color_set:
+                #print 'color set no change return :', node, cur_color_set, pre_color_set
+                continue
+            #RGBA表示なら復旧不要なのでデータ更新のみ
+            if not self.channel_but_group.checkedId() == 0:
+                #再変更前の現在のカラーセットを記録
+                cur_color_set_dict[node] = cur_color_set
+                #以前のカラーセットに戻してチャンネル復旧
+                cmds.polyColorSet(node, currentColorSet=True, colorSet=pre_color_set)
+                #print 'set to pre color set :', node, pre_color_set
+                self.change_view_channel(id=0, change_node=[node], reset=True)
+                #print 'reset view channel :', pre_color_set
+                #変更後のカラーセットに戻してからビューチャンネル変更
+                cmds.polyColorSet(node, currentColorSet=True, colorSet=cur_color_set)
+            self.update_colors(nodes=[node], force=True, id=0)
+            #print 'update_color form restore rgb :', node
+            self.change_view_channel(change_node=[node])#一旦RGBAに戻しておく
+                
+            #最後に現在のカラーセットを更新
+            self.current_color_dict[node] = cur_color_set
+        self.reset_times += 1
+        cmds.scriptJob(ro=True, e=("idle", self.init_restore_rgb_flag), protected=True)
+    
+    def init_restore_rgb_flag(self):
+        self.restore_rgb_flag = False
         
+
     #カレントカラーセットジョブを破棄する
     def kill_reset_job(self):
         for job in self.reset_job_list:
@@ -2339,12 +2430,13 @@ class MainWindow(qt.MainWindow):
             cmds.scriptJob(k=self.select_job, f=True)
         self.select_job = cmds.scriptJob(cu=True, e=("SelectionChanged", self.get_set_vertex_color))
         
-        #ペイント検出試行錯誤中
+        #ペイント検出
         if self.color_job:
             cmds.scriptJob(k=self.color_job, f=True)
         self.color_job = cmds.scriptJob(cu=True, e=("SelectionChanged", self.create_color_job))
         self.create_color_job()
         
+        #カラーセット変更ジョブ
         if self.corrent_set_job:
             cmds.scriptJob(k=self.corrent_set_job, f=True)
         self.corrent_set_job = cmds.scriptJob(cu=True, e=("SelectionChanged", self.reset_color_job))
