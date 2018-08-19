@@ -33,14 +33,9 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-#b1.0.0 再作成
-#b1.0.1 高速化・ドック廃止・ダイレクト入力
-#b1.0.2 カラーチャンネル変更時のペイント対応
-#b1.0.3 ペイントのリアルタイム検出
-#b1.0.4 書き込み高速化10倍、不具合修正、カラーセットエディタ起動ボタン
-#b1.0.5 不具合修正
-#b1.0.7 表示チャンネル変更したままカラーセットの選択変更に対応
-VERSION = 'b1.0.7'
+VERSION = 'r1.0.0'
+
+MAYA_VER = int(cmds.about(v=True)[:4])
 
 #速度計測結果を表示するかどうか
 COUNTER_PRINT = True
@@ -1005,6 +1000,14 @@ class MainWindow(qt.MainWindow):
         self.multiply_input_sld.valueChanged.connect(lambda : self.change_color_hsv(mode='multiply'))
         self.multiply_input_sld.sliderReleased.connect(self.hsv_sld_released)
         
+        multiply_layout.addWidget(qt.make_v_line())
+        
+        tip = lang.Lang(en='Reset color adjustment slider', ja=u'カラー調整スライダーをリセット').output()
+        self.reset_but = qt.make_flat_btton(name=' Reset HSV ', bg=self.hilite, h_max=but_h, h_min=but_h, 
+                                                    flat=True, hover=True, checkable=False, destroy_flag=True, tip=tip)
+        self.reset_but.clicked.connect(self.reset_hsv_palm)
+        multiply_layout.addWidget(self.reset_but)
+        
         self.main_layout.addWidget(qt.make_h_line())
         
         #--------------------------------------------------------------------------------------------
@@ -1043,11 +1046,23 @@ class MainWindow(qt.MainWindow):
         self.create_job()
         self.change_add_mode(id=self.mode)
         
+    def reset_hsv_palm(self):
+        self.sel_model_init_flag = False
+        self.restore_hsv_sld_value()
+        self.restore_flag = False
         
     #hsvスライダリリース時の特殊処理
     restore_flag = False
     def hsv_sld_pressed(self):
-        self.pushed_data = copy.copy(self._data)
+        self.pushed_data = []
+        for data in self._data:
+            if len(data) >= 8:
+                color_data = data[7]
+                pushed_color = [c for c in color_data]
+                self.pushed_data.append(pushed_color)
+            else:
+                self.pushed_data.append('')
+                
         self.pushed_hue_value = self.pre_pre_hue_value
         self.pushed_saturation_value = self.pre_pre_saturation_value
         self.pushed_value_value = self.pre_pre_value_value
@@ -1060,8 +1075,12 @@ class MainWindow(qt.MainWindow):
         self.change_flag = False
         #self.change_color_hsv()
         self.bake_vertex_color(realbake=False, ignoreundo=False)
+        #self.restore_hsv_sld_value()
+        if self.open_chunk_flag:
+            self.open_chunk_flag = False
+        #print 'close cunk in slider released'
         cmds.undoInfo(closeChunk=True)
-    
+        
     pre_hue_value = 0.0
     pre_saturation_value = 0.0
     pre_value_value = 0.0
@@ -1073,6 +1092,7 @@ class MainWindow(qt.MainWindow):
     pre_pre_contrast_value = 0.0
     pre_pre_multiply_value = 1.0
     bake_times = 0
+    open_chunk_flag = False
     def change_color_hsv(self, mode='hue'):
         if mode == 'hue':
             if self.hue_input.value() == self.pre_hue_value:
@@ -1134,7 +1154,7 @@ class MainWindow(qt.MainWindow):
         for row in all_rows:
             node, vid = self.get_row_vf_node_data(row)
             if self.change_flag:
-                org_colors = [col for col in self.pushed_data[row][0:3]]
+                org_colors = [col for col in self.pushed_data[row]]
             else:
                 org_colors = [col for col in self._data[row][7]]
             temp_rgb = org_colors[:3]
@@ -1185,7 +1205,8 @@ class MainWindow(qt.MainWindow):
         self.bake_times += 1
         
         if not self.key_pressed  and not self.change_flag:
-            #print 'slider press in beking func :'
+            #print 'slider press in beking func  open chunk:'
+            self.open_chunk_flag = True
             cmds.undoInfo(openChunk=True)
             #self.bake_vertex_color(realbake=False, ignoreundo=True)
             #self.change_flag = True
@@ -2290,7 +2311,7 @@ class MainWindow(qt.MainWindow):
             dagPath, component = sList.getComponent(0)
             meshFn = om2.MFnMesh(dagPath)
             
-            cur_color_set_list = cmds.polyColorSet(meshFn.fullPathName(), q=True, currentColorSet=True)
+            cur_color_set_list = cmds.polyColorSet(node, q=True, currentColorSet=True)
             if cur_color_set_list == None:
                 continue
             else:
@@ -2301,9 +2322,20 @@ class MainWindow(qt.MainWindow):
             
             for temp_color, org_color in zip(temp_colors, org_colors):
                 for col_id in loop_list:
-                    org_color[col_id] = temp_color[col_id]
+                    if id <= 4:
+                        org_color[col_id] = temp_color[col_id]
+                    else:
+                        org_color[col_id] = temp_color[0]
         #self.activateWindow()
-        self.color_model.reset()
+        #PySide2からリセット方法が変わっているので注意
+        #print 'check maya ver :', MAYA_VER
+        if MAYA_VER <= 2016:
+            #PySide1
+            self.color_model.reset()
+        else:
+            #PySide2
+            self.color_model.beginResetModel()
+            self.color_model.endResetModel()
             
     #カラージョブを破棄する
     def kill_color_job(self):
@@ -2353,6 +2385,7 @@ class MainWindow(qt.MainWindow):
             cur_color_set_list = cmds.polyColorSet(node, q=True, currentColorSet=True)
             #現在のカラーセットがなければスルー
             if cur_color_set_list == None:
+                #print 'no color set :', node
                 continue
             else:
                 cur_color_set = cur_color_set_list[0]
@@ -2372,6 +2405,7 @@ class MainWindow(qt.MainWindow):
                 #print 'reset view channel :', pre_color_set
                 #変更後のカラーセットに戻してからビューチャンネル変更
                 cmds.polyColorSet(node, currentColorSet=True, colorSet=cur_color_set)
+            #print 'run update colors'
             self.update_colors(nodes=[node], force=True, id=0)
             #print 'update_color form restore rgb :', node
             self.change_view_channel(change_node=[node])#一旦RGBAに戻しておく
