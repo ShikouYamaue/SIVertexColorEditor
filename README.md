@@ -100,7 +100,7 @@ RGBAチャンネル各独立してグレースケールでペイントするな�
 
 ![vetexcoloreditor](https://user-images.githubusercontent.com/28256498/42763047-e75f3e2e-894c-11e8-8b21-f0004283065b.gif)
 
-###カラーのコピーペースト
+### カラーのコピーペースト
 
 選択カラーのコピーペーストができます。  
 
@@ -112,7 +112,7 @@ RGBAチャンネル各独立してグレースケールでペイントするな�
 
 ![veretex9](https://user-images.githubusercontent.com/28256498/43366534-622248b8-937a-11e8-8ed3-3c14039faeca.gif)
 
-###HSV調整、コントラスト、乗算調整
+### HSV調整、コントラスト、乗算調整
 
 スライダで各パラメータ調整ができます。
 
