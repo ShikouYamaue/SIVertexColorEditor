@@ -16,6 +16,7 @@ class BakeVertexColorClass( om2.MPxCommand ):
     def __init__(self):
         global sivertexcoloreditor
         from sivertexcoloreditor import sivertexcoloreditor
+        #reload(sivertexcoloreditor)
         ''' Constructor. '''
         om2.MPxCommand.__init__(self)
     
@@ -23,7 +24,7 @@ class BakeVertexColorClass( om2.MPxCommand ):
         realbake, ignore_undo= self.parseArguments( args )
         #print 'ignore undo :', ignore_undo
         self.ignore_undo = ignore_undo
-        self.nodes, self.color_dict, self.org_color_dict, self.face_dict, self.vtx_dict = sivertexcoloreditor.get_current_data()
+        self.nodes, self.bake_color_dict, self.color_dict, self.org_color_dict, self.face_dict, self.vtx_dict = sivertexcoloreditor.get_current_data()
         if realbake:
             self.redoIt(flash=False)
         
@@ -42,7 +43,7 @@ class BakeVertexColorClass( om2.MPxCommand ):
             sList.add(node)
             mDagPath = sList.getDagPath(0)
             targetObjMesh = om2.MFnMesh(mDagPath)
-            targetObjMesh.setFaceVertexColors(self.color_dict[node],  self.face_dict[node], self.vtx_dict[node])
+            targetObjMesh.setFaceVertexColors(self.bake_color_dict[node],  self.face_dict[node], self.vtx_dict[node])
         sivertexcoloreditor.update_dict(self.color_dict)
         if flash:
             if self.ignore_undo:#スライダー制御中のアンドゥ履歴は全無視する
@@ -52,6 +53,7 @@ class BakeVertexColorClass( om2.MPxCommand ):
     
     def undoIt(self):
         sivertexcoloreditor.update_dict(self.org_color_dict)
+        #sivertexcoloreditor.set_current_data(self.nodes, self.org_color_dict,  self.org_color_dict, self.face_dict, self.vtx_dict)
         if self.ignore_undo:#スライダー制御中のアンドゥ履歴は全無視する
             return
         for node in self.nodes:
