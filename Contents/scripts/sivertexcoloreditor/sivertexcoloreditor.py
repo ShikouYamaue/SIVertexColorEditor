@@ -33,7 +33,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.0'
+VERSION = 'r1.0.1'
 
 MAYA_VER = int(cmds.about(v=True)[:4])
 
