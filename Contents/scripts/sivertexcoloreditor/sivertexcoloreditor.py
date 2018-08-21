@@ -33,7 +33,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.1'
+VERSION = 'r1.0.2'
 
 MAYA_VER = int(cmds.about(v=True)[:4])
 
@@ -1623,7 +1623,6 @@ class MainWindow(qt.MainWindow):
             
         self.counter.reset()
         
-        
         self.pre_mesh_color_dict = {}
         for mesh, color_list in self.mesh_color_dict.items():
             self.pre_mesh_color_dict[mesh] = color_list[:]
@@ -1731,7 +1730,10 @@ class MainWindow(qt.MainWindow):
             
             target_vertices = self.sel_vertices_dict[node]#メッシュごとの選択頂点
             
-            self.v_header_list.append(node.split('|')[-1].split(':')[-1])
+            node_name = node.split('|')[-1].split(':')[-1]
+            if len(node_name) >= 12:
+                node_name = node_name[:12] + '...'
+            self.v_header_list.append(node_name)
             
             if target_vertices:
                 vertex_dict = self.node_vertex_dict_dict[node]
@@ -2352,10 +2354,16 @@ class MainWindow(qt.MainWindow):
             cmds.scriptJob(k=job, f=True)
         self.reset_job_list = list()
         
+    def emit_reset_color_job_later(self):
+        cmds.scriptJob(ro=True, e=("idle", self.reset_color_job), protected=True)
+        
+        
     #カレントカラーセット切替ジョブ
     reset_job_list = list()
     color_job_group_id = 0#アトリビュート重複で複数回回らないように管理するID
+    @timer
     def reset_color_job(self):
+        #print 'emit reset color job :', self.hl_nodes
         self.kill_reset_color_job()#一旦全部無効化する
         for node in self.hl_nodes:
             #print 'create currentColorSetJob :', node
@@ -2458,7 +2466,7 @@ class MainWindow(qt.MainWindow):
                 
     select_job = None
     color_job = None
-    corrent_set_job = None
+    current_set_job = None
     def create_job(self):
         if self.select_job:
             cmds.scriptJob(k=self.select_job, f=True)
@@ -2471,9 +2479,9 @@ class MainWindow(qt.MainWindow):
         self.create_color_job()
         
         #カラーセット変更ジョブ
-        if self.corrent_set_job:
-            cmds.scriptJob(k=self.corrent_set_job, f=True)
-        self.corrent_set_job = cmds.scriptJob(cu=True, e=("SelectionChanged", self.reset_color_job))
+        if self.current_set_job:
+            cmds.scriptJob(k=self.current_set_job, f=True)
+        self.current_set_job = cmds.scriptJob(cu=True, e=("SelectionChanged", self.emit_reset_color_job_later))
         self.reset_color_job()
         
     def remove_job(self):
@@ -2487,9 +2495,9 @@ class MainWindow(qt.MainWindow):
             self.color_job = None
         self.kill_color_job()
         
-        if self.corrent_set_job:
-            cmds.scriptJob(k=self.corrent_set_job, f=True)
-            self.corrent_set_job = None
+        if self.current_set_job:
+            cmds.scriptJob(k=self.current_set_job, f=True)
+            self.current_set_job = None
         self.kill_reset_job()
         
         
