@@ -3,6 +3,7 @@ from maya import cmds
 from maya import mel
 import pymel.core as pm
 import maya.api.OpenMaya as om2
+import maya.OpenMayaUI as omui
 
 from . import common
 from . import lang
@@ -33,7 +34,8 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.2'
+VERSION = 'r1.0.3'
+TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
 
@@ -401,23 +403,36 @@ def model_iter(model, parent_index=QModelIndex(), col_iter=True):
         if not index.isValid():
             break
             
-class Option():
-    def __init__(self):
-        global window
+class OptionWindow():
+    def __init__(self, offset=False):
+        global WINDOW
         try:
-            window.closeEvent(None)
-            window.close()
+            #print 'widget visivle :', WINDOW.isVisible() 
+            WINDOW.closeEvent(None)
+            WINDOW.close()
         except Exception as e:
-            print e.message
-        window = MainWindow()
-        window.init_flag=False
+            print 'window close error :', e.message
+        WINDOW = VertexColorEditorWindow()
+        WINDOW.init_flag=False
+        if WINDOW.dockable or offset:
+            WINDOW.move(WINDOW.pw-8, WINDOW.ph-31)
+        else:
+            WINDOW.move(WINDOW.pw, WINDOW.ph)
+        #ウィンドウ幅が狭くても正しくボタン再配置できるように大きいサイズから縮めておく
         for i in range(0, 800, 50):
-            window.resize(1000 - i, 800)
-        window.resize(window.sw, window.sh)
-        window.move(window.pw-8, window.ph-31)
-        window.show()
+            WINDOW.resize(1000 - i, 800)
+        WINDOW.resize(WINDOW.sw, WINDOW.sh)
+        #print 'check window size :', WINDOW.sw, WINDOW.sh
+        #print 'check window pos :', WINDOW.pw, WINDOW.ph
+        #if WINDOW.area is not None:
+            #WINDOW.area = WINDOW.area[0]
+        WINDOW.show(dockable=WINDOW.dockable,
+                            area=WINDOW.area,
+                            floating=WINDOW.floating ,
+                            width=WINDOW.sw,
+                            height=WINDOW.sh)
         
-class MainWindow(qt.MainWindow):
+class VertexColorEditorWindow(qt.DockWindow):
     selection_mode = 'tree'
     filter_type = 'scene'
     icon_path = os.path.join(os.path.dirname(__file__), 'icon/')
@@ -455,13 +470,20 @@ class MainWindow(qt.MainWindow):
                     self.rgba = save_data['rgba']
                     self.norm = save_data['norm']
                     self.copy_colors = save_data['copy_color']
+                    self.dockable = save_data['dockable']
+                    self.floating = save_data['floating']
+                    self.area=save_data['area']
+                    return save_data
             except Exception as e:
-                print e.message, 'in load data'
-                self.init_save_data()
+                #print e.message, 'in load data'
+                save_data = self.init_save_data()
+                return save_data
         else:
-            self.init_save_data()
+            save_data = self.init_save_data()
+            return save_data
             
     def init_save_data(self):
+        print 'init save data : si vertex color editor'
         self.pw = 200
         self.ph = 200
         self.sw = 440
@@ -475,6 +497,12 @@ class MainWindow(qt.MainWindow):
         self.rgba = 0
         self.norm = False
         self.copy_colors = [0.502, 0.502, 0.502, 1.0]
+        self.dockable = False
+        self.floating = True
+        self.area = None
+        save_data = {}
+        save_data['dockable'] = False
+        return save_data
     
     def save_window_data(self, display=True):
         if not os.path.exists(self.dir_path):
@@ -482,10 +510,14 @@ class MainWindow(qt.MainWindow):
         #print('# ' + self.showRepr())
         save_data = {}
         dock_dtrl = self.parent()
-        pos = self.pos()
+        if self.isDockable() is True:
+            dock_dtrl = self.parent()
+            pos = dock_dtrl.mapToGlobal(QPoint(0, 0))
+        else:
+            pos = self.pos()
         size = self.size()
-        save_data['pw'] = pos.x()+8
-        save_data['ph'] = pos.y()+31
+        save_data['pw'] = pos.x()
+        save_data['ph'] = pos.y()
         save_data['sw'] = size.width()
         save_data['sh'] = size.height()
         save_data['hilite'] = self.highlite_but.isChecked()
@@ -497,10 +529,14 @@ class MainWindow(qt.MainWindow):
         save_data['rgba'] = self.channel_but_group.checkedId()
         save_data['norm'] = self.norm_but.isChecked()
         save_data['copy_color'] = self.copy_colors
+        save_data['dockable'] = self.docking_but.isChecked()
+        save_data['floating'] = self.isFloating()
+        save_data['area'] = self.dockArea()
         if not os.path.exists(self.dir_path):
             os.makedirs(self.dir_path)
         with open(self.w_file, 'w') as f:
             json.dump(save_data, f)
+        #print 'check_save data :', save_data['sw'], save_data['sh']
         
     pre_selection_node = []
     def __init__(self, parent = None, init_pos=False):
@@ -524,7 +560,10 @@ class MainWindow(qt.MainWindow):
         sq_widget.setWidgetResizable(True)#リサイズに中身が追従するかどうか
         sq_widget.setFocusPolicy(Qt.NoFocus)#スクロールエリアをフォーカスできるかどうか
         sq_widget.setMinimumHeight(1)#ウィンドウの最小サイズ
-        self.setWindowTitle(u'SI Vertex Color Editor / ver_'+VERSION)
+        
+        self.setWindowTitle(TITLE)
+        self.setObjectName(TITLE)
+        
         self.setCentralWidget(sq_widget)
         
         self.main_layout = QVBoxLayout()
@@ -685,6 +724,8 @@ class MainWindow(qt.MainWindow):
         self.mode_but_group.addButton(self.abs_but, 0)
         self.mode_but_group.addButton(self.add_but, 1)
         self.mode_but_group.addButton(self.add_par_but, 2)
+        if self.mode < 0:
+            self.mode = 0
         self.mode_but_group.button(self.mode).setChecked(True)
         mode_layout.addWidget(self.abs_but)
         mode_layout.addWidget(self.add_but)
@@ -729,6 +770,8 @@ class MainWindow(qt.MainWindow):
         self.channel_but_group.addButton(self.green_but, 3)
         self.channel_but_group.addButton(self.blue_but, 4)
         self.channel_but_group.addButton(self.alpha_but, 5)
+        if self.rgba < 0:
+            self.rgba = 0
         self.channel_but_group.button(self.rgba).setChecked(True)
         self.pre_channel_id = self.rgba
         channel_layout.addWidget(self.rgba_but)
@@ -1013,6 +1056,17 @@ class MainWindow(qt.MainWindow):
         #--------------------------------------------------------------------------------------------
         msg_layout = QHBoxLayout()
         
+        but_w = 80
+        tip = lang.Lang(en='Change whether dockable to Maya UI',  
+                                ja=u'Maya UIにドッキング可能かどうかを変更する').output()
+        self.docking_but = qt.make_flat_btton(name='Dock Enable', bg=self.hilite, border_col=180, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
+                                                                flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
+        self.docking_but.clicked.connect(self.change_dockable)
+        self.docking_but.setChecked(self.dockable)
+        msg_layout.addWidget(self.docking_but)
+        
+        msg_layout.addWidget(qt.make_v_line())
+        
         tip = lang.Lang(en='Show latest release page', ja=u'最新リリースページを表示').output()
         self.release_but = qt.make_flat_btton(name='', bg=self.hilite, border_col=180, w_max=BUTTON_HEIGHT, w_min=BUTTON_HEIGHT, h_max=but_h, h_min=but_h, 
                                                     flat=True, hover=True, checkable=False, destroy_flag=True, icon=self.icon_path+'release.png', tip=tip)
@@ -1024,6 +1078,9 @@ class MainWindow(qt.MainWindow):
                                                     flat=True, hover=True, checkable=False, destroy_flag=True, icon=self.icon_path+'help.png', tip=tip)
         self.help_but.clicked.connect(lambda : webbrowser.open(HELP_PATH))
         msg_layout.addWidget(self.help_but)
+        
+        label = QLabel(VERSION)
+        msg_layout.addWidget(label)
         
         msg_layout.addWidget(qt.make_v_line())
         
@@ -1041,10 +1098,38 @@ class MainWindow(qt.MainWindow):
         msg_layout.addWidget(self.msg_label)
         
         msg_layout.setSpacing(6)#ウェジェットどうしの間隔を設定する
+        msg_layout.addStretch(0)
         
         self.get_set_vertex_color()#起動時に取得実行
         self.create_job()
         self.change_add_mode(id=self.mode)
+        
+    #MayaUIにドッキングかのうかどうかを変更
+    def change_dockable(self):
+        if MAYA_VER <= 2016:
+            if self.docking_but.isChecked():
+                self.show(dockable=True,
+                                area=None,
+                                floating=True ,
+                                width=self.width(),
+                                height=self.height())
+            else:
+                    OptionWindow(offset=True)
+        else:
+            if self.docking_but.isChecked():
+                try:
+                    cmds.deleteUI(TITLE+'WorkspaceControl')
+                except:
+                    pass
+                self.save_window_data()
+                self.show(dockable=True,
+                                area=None,
+                                floating=True ,
+                                width=self.width(),
+                                height=self.height())
+            else:
+                self.save_window_data()
+                Option()
         
     def reset_hsv_palm(self):
         self.sel_model_init_flag = False
@@ -2500,7 +2585,6 @@ class MainWindow(qt.MainWindow):
             self.current_set_job = None
         self.kill_reset_job()
         
-        
     def closeEvent(self, e):
         print 'window close :'
         self.remove_job()
@@ -2508,6 +2592,10 @@ class MainWindow(qt.MainWindow):
         self.save_window_data()
         self.erase_func_data()
         self.deleteLater()
+        
+    def dockCloseEventTriggered(self):
+        print 'dock_close_event :'
+        self.closeEvent(None)
         
     def erase_func_data(self):
         print 'erase func data :'
@@ -2546,12 +2634,12 @@ class MainWindow(qt.MainWindow):
             
 #アンドゥ辞書を更新しておく。
 def update_dict(color_dict):
-    window.mesh_color_dict = color_dict
+    WINDOW.mesh_color_dict = color_dict
     
 #アンドゥリドゥの時に読み直す
 def refresh_window():
-    global window
-    window.get_set_vertex_color(cycle=True)
+    global WINDOW
+    WINDOW.get_set_vertex_color(cycle=True)
         
 #焼き込みコマンドに渡すためにグローバルに要素を展開
 def set_current_data(nodes, bake_color, color, org_color, face, vtx):
@@ -2595,4 +2683,100 @@ def set_header_width(view, model, index=None, space=55, add=0):
             __resize_main(i)
     else:
         __resize_main(index)
+            
+#UIの再構築--------------------------------------------------------------------------------------------
+def get_ui(name, weight_type):
+    all_ui = {w.objectName(): w for w in QApplication.allWidgets()}
+    ui = []
+    #print 'name , type :', name ,weight_type
+    for k, v in all_ui.items():
+        # 2017だとインスタンスの型をチェックしないと別の物まで入ってきてしまうらしい
+        if v.__class__.__name__ == weight_type:
+            #print 'get ui :',  v.__class__.__name__ 
+            #print 'close ui :', v
+            v.close()
+            #return v
+    
+def make_ui():
+    # 同名のウインドウが存在したら削除
+    get_ui(TITLE, 'VertexColorEditorWindow')
+
+    app = QApplication.instance()
+    ui = VertexColorEditorWindow()
+    return ui
+   
+def Option(x=None, y=None):
+    global WINDOW
+    try:
+        WINDOW.close()
+    except:
+        pass
+    print 'si vertex color editor : Option'
+    #Maya2016以下はいままで通りのしょり
+    if MAYA_VER <= 2016:
+        OptionWindow()
+        return
+    window = make_ui()
+    save_data = window.load_window_data(init_pos=False)
+    
+    #不要なワークスペースコントロールセットを削除
+    try:
+        cmds.deleteUI(TITLE+'WorkspaceControl')
+    except:
+        pass
         
+    if not save_data['dockable']:
+        window.save_flag=False
+        window.close()
+        OptionWindow()
+        return
+    WINDOW = window
+    
+    #print "load window size :", save_data['sw'], save_data['sh']
+    if save_data:
+        width = save_data['sw']
+        height = save_data['sh']
+    else:
+        width = None
+        height = None
+
+    ui_script = "import sivertexcoloreditor.sivertexcoloreditor;sivertexcoloreditor.sivertexcoloreditor.restoration_workspacecontrol()"
+    
+    # 保存されたデータのウインドウ位置を使うとウインドウのバーが考慮されてないのでズレる
+    opts = {
+        "dockable":  save_data['dockable'],
+        "floating": True,
+        "area": None,
+        "allowedArea": None,
+        "x": None,
+        "y": None,
+        # below options have been introduced at 2017
+        "widthSizingProperty": width,
+        "heightSizingProperty": height,
+        "initWidthAsMinimum": None,
+        "retain": False,
+        "plugins": None,
+        "controls": None,
+        "uiScript": ui_script,
+        "closeCallback": None
+    }
+    WINDOW.setDockableParameters(**opts)
+    #print 'check unque but list :', WINDOW.but_list
+    WINDOW.init_flag = False
+    WINDOW.resizeEvent(WINDOW)
+    #WINDOW.show()
+    
+#再起動時の復元
+def restoration_workspacecontrol():
+    print 'SI Vertex Color Editor : restoration_workspacecontrol'
+    global WINDOW
+    WINDOW = make_ui()
+    restoredControl = omui.MQtUtil.getCurrentParent()
+    mixinPtr = omui.MQtUtil.findControl(WINDOW.objectName())
+    omui.MQtUtil.addWidgetToMayaLayout(long(mixinPtr), long(restoredControl))
+    #動的配置ボタンを復旧しておく
+    WINDOW.init_flag = False
+    WINDOW.resizeEvent(WINDOW)
+        
+if __name__ == '__main__':
+    main()

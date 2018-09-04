@@ -16,6 +16,8 @@ try:
 except ImportError:
     import shiboken
     
+from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
+
 maya_ver = int(cmds.about(v=True)[:4])
 maya_api_ver = int(cmds.about(api=True))
 
@@ -29,6 +31,10 @@ class SubWindow(QMainWindow):
     def __init__(self, parent = maya_window):
         super(SubWindow, self).__init__(maya_window)
     
+class DockWindow(MayaQWidgetDockableMixin, QMainWindow):
+    def __init__(self, *args, **kwargs):
+        super(DockWindow, self).__init__(*args, **kwargs)
+        
 class Callback(object):
     def __init__(self, func, *args, **kwargs):
         self.__func = func
