@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.3'
+VERSION = 'r1.0.4'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -2302,7 +2302,8 @@ class VertexColorEditorWindow(qt.DockWindow):
                 #チャンネル変更は履歴残さないのでそのまま焼き付け
                 meshFn.setFaceVertexColors(temp_rgba_list,  self.temp_vf_face_dict[node], self.temp_vf_vtx_dict[node])
         
-        self.pre_channel_id = id
+        if not reset:
+            self.pre_channel_id = id
         #print 'change pre channnel id :', id
         self.cc_counter.count(string='change color channel:')
             
@@ -2310,7 +2311,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         
     #各チャンネルの変更を考慮してオリジナルチャンネルに復旧する
     def reset_to_rgba(self, target_nodes, pre_id):
-        #print 'reset to rgba', target_nodes
+        #print 'reset to rgba', target_nodes, pre_id
         rgba_id = pre_id - 2
         for node in target_nodes:
             #print 'reset to origin :', node, pre_id
@@ -2585,11 +2586,13 @@ class VertexColorEditorWindow(qt.DockWindow):
             self.current_set_job = None
         self.kill_reset_job()
         
+    save_flag = True
     def closeEvent(self, e):
         print 'window close :'
         self.remove_job()
         self.reset_channel_as_close()
-        self.save_window_data()
+        if self.save_flag:
+            self.save_window_data()
         self.erase_func_data()
         self.deleteLater()
         
