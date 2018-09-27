@@ -101,7 +101,7 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
             delta /= abs(delta)#120単位を1単位に直す
             shift_mod = self.check_shift_modifiers()
             ctrl_mod = self.check_ctrl_modifiers()
-            if window.mode_but_group.checkedId() == 2 or MAXIMUM_DIGIT == 100:
+            if WINDOW.mode_but_group.checkedId() == 2 or MAXIMUM_DIGIT == 100:
                 offset = 100.0
             else:
                 offset = 1.0
