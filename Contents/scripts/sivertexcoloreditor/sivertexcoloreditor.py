@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.4'
+VERSION = 'r1.0.5'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -1712,6 +1712,8 @@ class VertexColorEditorWindow(qt.DockWindow):
         for mesh, color_list in self.mesh_color_dict.items():
             self.pre_mesh_color_dict[mesh] = color_list[:]
         
+        self.original_selection = cmds.ls(sl=True, l=True)#ハイライトの時にまとめて選択する元の選択
+        
         #クリアボタン押されたときは全部初期化
         if clear:
             sel = []
@@ -2006,33 +2008,52 @@ class VertexColorEditorWindow(qt.DockWindow):
         
     @timer
     def hilite_vertices(self):
+        cmds.undoInfo(swf=False)#不要なヒストリを残さないようにオフる
+        
         self.counter.reset()
-        self.sel_rows = list(set([item.row() for item in self.selected_items]))
-        if len(self.sel_rows) == len(self.view_vertices):
-            #全行選択された場合は選択時間短縮のためワイルドカードを与える
-            #10～60倍くらい早い
-            vertices = self.view_vertices
-            vertices = []
-            for node in self.hl_nodes:
-                 vertices.append(node + '.vtxFace[*][*]')
-        else:
-            vertices = []
-            for r in self.sel_rows:
+        
+        vertices = []
+        rows = list(set([item.row() for item in self.selected_items]))
+        if rows:
+            mesh_vf_sel_dict = defaultdict(lambda : [])
+            for r in rows:
                 node = self._data[r][4]
                 vf = self._data[r][6]
-                vertices.append(node + '.vtxFace['+str(vf[0])+']['+str(vf[1])+']')
-        cmds.selectMode(co=True)
+                mesh_vf_sel_dict[node].append(vf)
+        
+            for node in self.hl_nodes:
+                node_sel_row_vf = mesh_vf_sel_dict[node]
+                if len(node_sel_row_vf) == len(self.node_vertex_dict[node]):
+                    #メッシュの対応する全行選択された場合は選択時間短縮のためワイルドカードを与える
+                    #print 'get all hl comp :', node
+                    vertices.append(node + '.vtxFace[*][*]')
+                else:
+                    #print 'get part hl comp :', node
+                    for vf in node_sel_row_vf:
+                        vertices.append(node + '.vtxFace['+str(vf[0])+']['+str(vf[1])+']')
+        #cmds.selectMode(co=True)
         self.hilite_flag = True
         self.counter.count(string='get cell vtx :')
+        
         #コンポーネントが細かく分かれているから選択に時間がかかるっぽい
-        cmds.select(vertices, r=True)
+        if not vertices:
+            cmds.select(self.original_selection, r=True)
+        else:
+            if cmds.selectMode(q=True, o=True):
+                cmds.select(vertices+self.original_selection, r=True)
+            else:
+                cmds.select(vertices, r=True)
+                
         self.counter.count(string='select vtx :')
         self.counter.lap_print(print_flag=COUNTER_PRINT)
             
+        cmds.undoInfo(swf=True)#ヒストリを再度有効か
+        
     def reset_hilite(self):
         if not self.highlite_but.isChecked():
             self.hilite_flag = True
             cmds.select(cl=True)
+            cmds.select(self.original_selection, r=True)
         else:
             self.cell_changed(self.selected_items, None)
         
