@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.5'
+VERSION = 'r1.0.6'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -112,7 +112,7 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
                 self.setValue(self.value()+delta*0.1*offset)
             else:
                 self.setValue(self.value()+delta*0.01*offset)
-            cmds.scriptJob(ro=True, e=("idle", self.emit_wheel_event), protected=True)
+            cmds.evalDeferred(self.emit_wheel_event)
         if event.type() == QEvent.KeyPress:
             self.keypressed.emit()
         if event.type() == QEvent.MouseButtonPress:
@@ -124,7 +124,7 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
         
     #入力窓を選択するジョブ
     def sel_all_input(self):
-        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
+        cmds.evalDeferred(self.select_box_all)
         
     #スピンボックスの数値を全選択する
     def select_box_all(self):
@@ -132,9 +132,6 @@ class EditorDoubleSpinbox(QDoubleSpinBox):
             self.selectAll()
         except:
             pass
-            
-    def sel_all_input(self):
-        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
             
     def check_shift_modifiers(self):
         mods = QApplication.keyboardModifiers()
@@ -162,7 +159,7 @@ class EditorSpinbox(QSpinBox):
             self.focused.emit()
             self.sel_all_input()
         if event.type() == QEvent.Wheel:
-            cmds.scriptJob(ro=True, e=("idle", self.emit_wheel_event), protected=True)
+            cmds.evalDeferred(self.emit_wheel_event)
         if event.type() == QEvent.KeyPress:
             self.keypressed.emit()
         if event.type() == QEvent.MouseButtonPress:
@@ -170,7 +167,7 @@ class EditorSpinbox(QSpinBox):
         return False
     #ウェイト入力窓を選択するジョブ
     def sel_all_input(self):
-        cmds.scriptJob(ro=True, e=("idle", self.select_box_all), protected=True)
+        cmds.evalDeferred(self.select_box_all)
     #スピンボックスの数値を全選択する
     def select_box_all(self):
         try:
@@ -1410,12 +1407,22 @@ class VertexColorEditorWindow(qt.DockWindow):
         color = map(lambda c : int(c*255), self.copy_colors)[0:3]
         self.colorDialog.setCurrentColor(QColor(*color))
         #カスタムカラー取得
-        if os.path.exists(self.custom_color_path):#保存ファイルが存在したら
-            with open(self.custom_color_path, 'r') as f:
-                self.custom_color = json.load(f)
-            #カスタムカラーを設定する
-            for i, c in self.custom_color.items():
-                self.colorDialog.setCustomColor(int(i), c)
+        try:
+            if os.path.exists(self.custom_color_path):#保存ファイルが存在したら
+                with open(self.custom_color_path, 'r') as f:
+                    self.custom_color = json.load(f)
+                #カスタムカラーを設定する
+                for i, c in self.custom_color.items():
+                    if MAYA_VER >= 2017:
+                        #2017以降はQColorで設定
+                        color = QColor(*c)
+                    else:
+                        #2016以下はQRgbのインデックスに再変換して設定
+                        color = QColor(*c).rgba()
+                    #print 'set color :', color
+                    self.colorDialog.setCustomColor(int(i), color)
+        except Exception as e :
+            print e.message
         response = self.colorDialog.exec_()
         if response != QDialog.Accepted:
             return
@@ -1424,11 +1431,23 @@ class VertexColorEditorWindow(qt.DockWindow):
         qt.change_button_color(self.color_but, textColor=0, bgColor=color, hiColor=color, 
                                             mode='button', hover=False, destroy=True)
         self.copy_colors = map(lambda c : c/255.0, color) + [self.copy_colors[3]]
+        
+        rgba_text = self.make_rgba_text(self.copy_colors)
+        self.rgb_value_but.setText(rgba_text)
         #カスタムカラー保存--------------------------------
         costom_colors = {}
         for i in range(17):
             #print 'save change custom color :', self.colorDialog.customColor(i)
-            costom_colors[i] = self.colorDialog.customColor(i)
+            #PySide1と2で共通化するためにRGB値に直して保存
+            if MAYA_VER >= 2017:
+                color = self.colorDialog.customColor(i).getRgb()
+                print color
+            else:
+                color = QColor(self.colorDialog.customColor(i))
+                color = color.getRgb()
+            #print 'save change custom color :', color
+            
+            costom_colors[i] = color
         with open(self.custom_color_path, 'w') as f:
             #print 'save'
             json.dump(costom_colors, f)
@@ -1487,7 +1506,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         
     #ウェイト入力窓を選択するジョブ
     def sel_all_weight_input(self, widget=None):
-        cmds.scriptJob(ro=True, e=("idle", lambda : self.select_box_all(widget=widget)), protected=True)
+        cmds.evalDeferred(lambda : self.select_box_all(widget=widget))
         
     def select_box_all(self, widget=None):
         try:
@@ -2462,7 +2481,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         self.reset_job_list = list()
         
     def emit_reset_color_job_later(self):
-        cmds.scriptJob(ro=True, e=("idle", self.reset_color_job), protected=True)
+        cmds.evalDeferred(self.reset_color_job)
         
         
     #カレントカラーセット切替ジョブ
@@ -2528,7 +2547,7 @@ class VertexColorEditorWindow(qt.DockWindow):
             #最後に現在のカラーセットを更新
             self.current_color_dict[node] = cur_color_set
         self.reset_times += 1
-        cmds.scriptJob(ro=True, e=("idle", self.init_restore_rgb_flag), protected=True)
+        cmds.evalDeferred(self.init_restore_rgb_flag)
     
     def init_restore_rgb_flag(self):
         self.restore_rgb_flag = False
