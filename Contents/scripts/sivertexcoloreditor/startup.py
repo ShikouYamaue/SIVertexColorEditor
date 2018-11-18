@@ -4,15 +4,19 @@ import maya.cmds as cmds
 import maya.mel as mel
 import maya.utils
 from . import sivertexcoloreditor
+from . import qt
 
 def menu_setup():
+    #Maya_Windowが見つからない場合はスタートしない
+    if not qt.get_maya_window():
+        return
+    
     cmd = '''
     buildViewMenu MayaWindow|mainWindowMenu;
     setParent -menu "MayaWindow|mainWindowMenu";
     '''
-
     mel.eval(cmd)
-
+    
     cmds.menuItem(divider=True)
     cmds.menuItem(
         'sivertexcoloreditor_folder',

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from maya import OpenMayaUI, cmds
+from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 #PySide2、PySide両対応
 import imp
 try:
@@ -16,25 +17,40 @@ try:
 except ImportError:
     import shiboken
     
-from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
+MAYA_VER = int(cmds.about(v=True)[:4])
+MAYA_API_VER = int(cmds.about(api=True))
 
-maya_ver = int(cmds.about(v=True)[:4])
-maya_api_ver = int(cmds.about(api=True))
+try:
+    MAYA_WIDNOW = shiboken.wrapInstance(long(OpenMayaUI.MQtUtil.mainWindow()), QWidget)
+except:
+    MAYA_WIDNOW = None
+    
+#MayaWindow単独取得関数
+def get_maya_window():
+    try:
+        imp.find_module("shiboken2")
+        import shiboken2
+        return shiboken2.wrapInstance(long(OpenMayaUI.MQtUtil.mainWindow()), QWidget)
 
-maya_window = shiboken.wrapInstance(long(OpenMayaUI.MQtUtil.mainWindow()), QWidget)
-
+    except ImportError:
+        try:
+            import shiboken
+            return shiboken.wrapInstance(long(OpenMayaUI.MQtUtil.mainWindow()), QWidget)
+        except:
+            return None
+            
 class MainWindow(QMainWindow):
-    def __init__(self, parent = maya_window):
-        super(MainWindow, self).__init__(maya_window)
+    def __init__(self, parent = MAYA_WIDNOW):
+        super(MainWindow, self).__init__(MAYA_WIDNOW)
        
 class SubWindow(QMainWindow):
-    def __init__(self, parent = maya_window):
-        super(SubWindow, self).__init__(maya_window)
-    
+    def __init__(self, parent = MAYA_WIDNOW):
+        super(SubWindow, self).__init__(MAYA_WIDNOW)
+        
 class DockWindow(MayaQWidgetDockableMixin, QMainWindow):
     def __init__(self, *args, **kwargs):
         super(DockWindow, self).__init__(*args, **kwargs)
-        
+    
 class Callback(object):
     def __init__(self, func, *args, **kwargs):
         self.__func = func
@@ -256,7 +272,7 @@ def change_border_style(button):
                                     'QPushButton:pressed{border-style:solid; border-width: 2px; border-color: red ; border-radius: 1px;}')
 
 #ボタンカラーを変更する関数
-def change_button_color(button, textColor=200, bgColor=68, hiColor=68, hiText=255, hiBg=[97, 132, 167], dsColor=180,
+def change_button_color(button, textColor=200, bgColor=68, hiColor=68, hiText=255, hiBg=[97, 132, 167], dsColor=[255, 128, 128],
                                         mode='common', toggle=False, hover=True, destroy=False, dsWidth=1):
     '''引数
     button 色を変えたいウィジェットオブジェクト
