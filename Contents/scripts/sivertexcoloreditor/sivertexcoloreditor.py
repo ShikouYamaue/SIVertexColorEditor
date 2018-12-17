@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.7'
+VERSION = 'r1.0.8'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -437,7 +437,7 @@ class VertexColorEditorWindow(qt.DockWindow):
     def init_save(self):
         temp = __name__.split('.')
         self.dir_path = os.path.join(
-            os.getenv('MAYA_APP_dir'),
+            os.getenv('MAYA_APP_DIR'),
             'Scripting_Files')
         self.w_file = self.dir_path+'/'+temp[-1]+'_window.json'
         self.custom_color_path = self.dir_path+'/'+temp[-1]+'_custom_color.json'
