@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.0.8'
+VERSION = 'r1.0.9'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
