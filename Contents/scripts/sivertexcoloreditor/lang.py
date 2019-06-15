@@ -13,3 +13,6 @@ class Lang(object):
         if UI_LANGUAGE == "ja_JP":
             return self.jp
         return self.en
+        
+        
+        
