@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.1.0'
+VERSION = 'r1.1.2'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -469,7 +469,8 @@ class VertexColorEditorWindow(qt.DockWindow):
                     self.copy_colors = save_data['copy_color']
                     self.dockable = save_data['dockable']
                     self.floating = save_data['floating']
-                    self.area=save_data['area']
+                    self.area = save_data['area']
+                    self.normalize = save_data['normalize']
                     return save_data
             except Exception as e:
                 #print e.message, 'in load data'
@@ -497,6 +498,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         self.dockable = False
         self.floating = True
         self.area = None
+        self.normalize = True
         save_data = {}
         save_data['dockable'] = False
         return save_data
@@ -512,6 +514,7 @@ class VertexColorEditorWindow(qt.DockWindow):
             pos = dock_dtrl.mapToGlobal(QPoint(0, 0))
         else:
             pos = self.pos()
+        #print 'check pos :', pos
         size = self.size()
         save_data['pw'] = pos.x()
         save_data['ph'] = pos.y()
@@ -524,7 +527,8 @@ class VertexColorEditorWindow(qt.DockWindow):
         save_data['add5'] = self.add_5_but.isChecked()
         save_data['mode'] = self.mode_but_group.checkedId()
         save_data['rgba'] = self.channel_but_group.checkedId()
-        save_data['norm'] = self.norm_but.isChecked()
+        save_data['norm'] = self.unit_but.isChecked()
+        save_data['normalize'] = self.norm_but.isChecked()
         save_data['copy_color'] = self.copy_colors
         save_data['dockable'] = self.docking_but.isChecked()
         save_data['floating'] = self.isFloating()
@@ -696,11 +700,11 @@ class VertexColorEditorWindow(qt.DockWindow):
         mode_layout.setSpacing(0)#ウェジェットどうしの間隔を設定する
         mode_widget.setLayout(mode_layout)
         mode_widget.setMaximumHeight(WIDGET_HEIGHT)
-        but_w = 55
-        norm_w =60
-        space = 0
-        mode_widget.setMinimumWidth(but_w*3+norm_w+space)
-        mode_widget.setMaximumWidth(but_w*3+norm_w+space)
+        but_w = 40
+        norm_w =65
+        space = 30
+        mode_widget.setMinimumWidth(but_w*3+norm_w*2+space)
+        mode_widget.setMaximumWidth(but_w*3+norm_w*2+space)
         self.mode_but_group = QButtonGroup()
         tip = lang.Lang(en='Values entered represent absolute values', ja=u'絶対値で再入力').output()
         self.abs_but = qt.make_flat_btton(name='Abs', bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
@@ -709,24 +713,32 @@ class VertexColorEditorWindow(qt.DockWindow):
         self.add_but = qt.make_flat_btton(name='Add', bg=self.hilite, w_max=but_w, w_min=but_w, h_max=but_h, h_min=but_h, 
                                                     flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
         tip = lang.Lang(en='Values entered are percentages added to exisiting values', ja=u'既存値への率加算入力').output()
-        self.add_par_but = qt.make_flat_btton(name='Add%  ', bg=self.hilite, w_max=but_w+10, w_min=but_w+10, h_max=but_h, h_min=but_h, 
+        self.add_par_but = qt.make_flat_btton(name='Add%', bg=self.hilite, w_max=but_w+10, w_min=but_w+10, h_max=but_h, h_min=but_h, 
                                                     flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
         tip = lang.Lang(en='Change view normalize(0.0-1.0 <> 0-255)', ja=u'カラーの正規化表示切替（0.0～1.0⇔0～255）').output()
-        self.norm_but = qt.make_flat_btton(name='1<>255', bg=self.hilite, w_max=norm_w, w_min=norm_w, h_max=but_h, h_min=but_h, 
+        self.unit_but = qt.make_flat_btton(name='1<>255', bg=self.hilite, w_max=norm_w, w_min=norm_w, h_max=but_h, h_min=but_h, 
                                                     flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
         self.mode_but_group.buttonClicked[int].connect(self.change_add_mode)
-        self.norm_but.setChecked(self.norm)
-        self.norm_but.clicked.connect(self.change_normal_mode)
-        self.norm_but.clicked.connect(lambda : self.change_add_mode(self.mode_but_group.checkedId()))
+        self.unit_but.setChecked(self.norm)
+        self.unit_but.clicked.connect(self.change_normal_mode)
+        self.unit_but.clicked.connect(lambda : self.change_add_mode(self.mode_but_group.checkedId()))
         self.mode_but_group.addButton(self.abs_but, 0)
         self.mode_but_group.addButton(self.add_but, 1)
         self.mode_but_group.addButton(self.add_par_but, 2)
         if self.mode < 0:
             self.mode = 0
+        self.mode_but_group.buttonClicked[int].connect(self.change_add_mode)
         self.mode_but_group.button(self.mode).setChecked(True)
+        tip = lang.Lang(en='Allow a total value of 1.0 or more or 0.0 or less', ja=u'合計1.0以上もしくは0.0以下の値を許容する').output()
+        self.norm_but = qt.make_flat_btton(name='Normalize', bg=self.hilite, border_col=180, w_max=norm_w, w_min=norm_w, h_max=but_h, h_min=but_h, 
+                                            flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
+        self.norm_but.setChecked(self.normalize)
+        #self.norm_but.clicked.connect(self.toggle_no_limit_but_enable)
+        #self.norm_but.rightClicked.connect(lambda : self.enforce_limit_and_normalize(force_norm=True))
         mode_layout.addWidget(self.abs_but)
         mode_layout.addWidget(self.add_but)
         mode_layout.addWidget(self.add_par_but)
+        mode_layout.addWidget(self.unit_but)
         mode_layout.addWidget(self.norm_but)
         self.but_list.append(mode_widget)
         
@@ -1542,11 +1554,11 @@ class VertexColorEditorWindow(qt.DockWindow):
             column = 3
         text = self.color_model.get_data(row=row, column=column)
         try:
-            if self.norm_but.isChecked():
+            if self.unit_but.isChecked():
                 value = float(text)
             else:
                 value = int(float(text)*255)
-            self.input_box = PopInputBox(value = value, float_flag=self.norm_but.isChecked(),  mode=self.mode_but_group.checkedId())
+            self.input_box = PopInputBox(value = value, float_flag=self.unit_but.isChecked(),  mode=self.mode_but_group.checkedId())
             self.input_box.closed.connect(self.apply_input_box_value)
         except:
             pass
@@ -1575,7 +1587,7 @@ class VertexColorEditorWindow(qt.DockWindow):
     #加算モードが変更されたらスライダー反映式を変える
     add_mode = 0
     def change_from_sld(self):
-        if self.norm_but.isChecked():
+        if self.unit_but.isChecked():
             if self.add_mode == 0 or self.add_mode == 1:
                 div_num = 1000.0
         else:
@@ -1586,7 +1598,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         self.weight_input.setValue(self.weight_input_sld.value()/div_num)
         
     def change_from_spinbox(self):
-        if self.norm_but.isChecked():
+        if self.unit_but.isChecked():
             if self.add_mode == 0 or self.add_mode == 1:
                 mul_num = 1000.0
         else:
@@ -1604,13 +1616,13 @@ class VertexColorEditorWindow(qt.DockWindow):
             if len(self.selected_items) ==1:
                 value = self.color_model.get_data(self.selected_items[0])
                 #print 'get single abs value :', value
-                if self.norm_but.isChecked():
+                if self.unit_but.isChecked():
                         self.weight_input_sld.setValue(float(value)*1000)
                 else:
                         self.weight_input_sld.setValue(int(value*255))
                 if change_only:
                     return
-        if self.norm_but.isChecked():
+        if self.unit_but.isChecked():
             if id == 0:
                 self.weight_input.setRange(0, 1)
                 self.weight_input.setDecimals(3)
@@ -1820,7 +1832,7 @@ class VertexColorEditorWindow(qt.DockWindow):
             sel_vertices = []
         self.norm_value_list = []
         
-        norm_flag = self.norm_but.isChecked()
+        norm_flag = self.unit_but.isChecked()
         self.all_rows = 0#右クリックウィンドウ補正用サイズを出すため全行の桁数を数える
         self._data = []#全体のテーブルデータを格納する
         self.mesh_rows = []
@@ -1879,7 +1891,7 @@ class VertexColorEditorWindow(qt.DockWindow):
             print e.message, 'in get set'
             
         self.color_model = TableModel(self._data, self.view_widget, self.mesh_rows, self.v_header_list)
-        self.color_model.norm = self.norm_but.isChecked()#ノーマル状態かどうかを渡しておく
+        self.color_model.norm = self.unit_but.isChecked()#ノーマル状態かどうかを渡しておく
         
         self.sel_model = QItemSelectionModel(self.color_model)#選択モデルをつくる
         self.sel_model.selectionChanged.connect(self.cell_changed)#シグナルをつなげておく
@@ -2143,7 +2155,7 @@ class VertexColorEditorWindow(qt.DockWindow):
         #絶対値の時の処理
         if self.add_mode == 0:#abs
             self.norm_value_list = []
-            if self.norm_but.isChecked():
+            if self.unit_but.isChecked():
                 new_value = add_value
             else:
                 #計算誤差修正モードの場合は255値に0.5足して計算する
@@ -2151,8 +2163,9 @@ class VertexColorEditorWindow(qt.DockWindow):
                     add_value += 0.5
                 new_value = int(add_value)/255.0
             #0-1.0でクランプ
-            new_value = min([1.0, new_value])
-            new_value = max([0, new_value])
+            if self.norm_but.isChecked():
+                new_value = min([1.0, new_value])
+                new_value = max([-1.0, new_value])
             
             #まとめてデータ反映
             for cell_id in self.selected_items:
@@ -2163,7 +2176,7 @@ class VertexColorEditorWindow(qt.DockWindow):
                 rgba = column
                 node, vid = self.get_row_vf_node_data(row)
                 self.mesh_color_dict[node][vid][rgba] = new_value#全ての頂点の情報更新
-            if self.norm_but.isChecked():
+            if self.unit_but.isChecked():
                 after_value = new_value
             else:
                 after_value = int(new_value*255)
@@ -2191,22 +2204,23 @@ class VertexColorEditorWindow(qt.DockWindow):
                 org_value = rgba_list[vid][rgba]
                 
                 if self.add_mode == 1:#add
-                    if self.norm_but.isChecked():
+                    if self.unit_but.isChecked():
                         new_value = org_value + sub_value
                     else:#誤差補正のため一旦255に戻して計算する
                         new_value = (int(org_value * 255) + sub_value + add5_value) / 255.0
                     
                 if self.add_mode == 2:#add%
-                    if self.norm_but.isChecked():
+                    if self.unit_but.isChecked():
                         new_value = org_value * (1.0 + ratio)
                     else:#誤差補正のため一旦255に戻して計算する
                         int_value = org_value*255
                         new_value = (int_value + int(int_value * ratio) + add5_value) / 255.0
-                    
-                if new_value > 1.0:
-                    new_value = 1.0
-                elif new_value < 0.0:
-                    new_value = 0.0
+                
+                if self.norm_but.isChecked():
+                    if new_value > 1.0:
+                        new_value = 1.0
+                    elif new_value < -1.0:
+                        new_value = -1.0
                     
                 #self.color_model.setData(cell_id, new_value)
                 self.mesh_color_dict[node][vid][rgba] = new_value#全ての頂点の情報更新
@@ -2271,10 +2285,10 @@ class VertexColorEditorWindow(qt.DockWindow):
     @timer
     def change_normal_mode(self):
         self.pre_add_value = 0.0#加算量を初期化
-        self.color_model.norm = self.norm_but.isChecked()#ノーマル状態かどうかを渡しておく
+        self.color_model.norm = self.unit_but.isChecked()#ノーマル状態かどうかを渡しておく
         self.refresh_table_view()
         global MAXIMUM_DIGIT
-        if self.norm_but.isChecked():
+        if self.unit_but.isChecked():
             MAXIMUM_DIGIT = 1.0
         else:
             MAXIMUM_DIGIT = 100
@@ -2751,6 +2765,8 @@ def make_ui():
 def Option(x=None, y=None):
     global WINDOW
     try:
+        WINDOW.dockCloseEventTriggered()
+        WINDOW.save_flag=False
         WINDOW.close()
     except:
         pass
