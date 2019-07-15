@@ -34,7 +34,7 @@ except ImportError:
     from PySide.QtGui import *
     from PySide.QtCore import *
 
-VERSION = 'r1.1.2'
+VERSION = 'r1.1.3'
 TITLE = "SIVertexColorEditor"
 
 MAYA_VER = int(cmds.about(v=True)[:4])
@@ -729,12 +729,15 @@ class VertexColorEditorWindow(qt.DockWindow):
             self.mode = 0
         self.mode_but_group.buttonClicked[int].connect(self.change_add_mode)
         self.mode_but_group.button(self.mode).setChecked(True)
-        tip = lang.Lang(en='Allow a total value of 1.0 or more or 0.0 or less', ja=u'合計1.0以上もしくは0.0以下の値を許容する').output()
+        tip = lang.Lang(
+                        en='Allow a total value of 1.0 or more or 0.0 or less\n\nForced normalization by right-click\n*Apply to all cells when executed without selecting anything', 
+                        ja=u'合計1.0以上もしくは0.0以下の値を許容する\n\n右クリックで強制正規化実行\n※何も選択せず実行するとすべてのセルに適用します'
+                        ).output()
         self.norm_but = qt.make_flat_btton(name='Normalize', bg=self.hilite, border_col=180, w_max=norm_w, w_min=norm_w, h_max=but_h, h_min=but_h, 
                                             flat=True, hover=True, checkable=True, destroy_flag=True, tip=tip)
         self.norm_but.setChecked(self.normalize)
         #self.norm_but.clicked.connect(self.toggle_no_limit_but_enable)
-        #self.norm_but.rightClicked.connect(lambda : self.enforce_limit_and_normalize(force_norm=True))
+        self.norm_but.rightClicked.connect(self.normalize_color_value)
         mode_layout.addWidget(self.abs_but)
         mode_layout.addWidget(self.add_but)
         mode_layout.addWidget(self.add_par_but)
@@ -1139,6 +1142,27 @@ class VertexColorEditorWindow(qt.DockWindow):
             else:
                 self.save_window_data()
                 Option()
+                
+    def normalize_color_value(self):
+        if not self.selected_items:
+            all_rows = list(set(range(self.all_rows))-set(self.mesh_rows))
+        else:
+            all_rows = set([item.row() for item in self.selected_items])
+        for row in all_rows:
+            node, vid = self.get_row_vf_node_data(row)
+            #メッシュ辞書の値を更新するだけでよい
+            for rgba in range(4):
+                value = self.mesh_color_dict[node][vid][rgba]
+                value = min(1.0, value)
+                value = max(0.0, value)
+                self.mesh_color_dict[node][vid][rgba] = value
+        #焼きこみ
+        if self.channel_but_group.checkedId() == 0:
+            self.bake_vertex_color(realbake=True, ignoreundo=self.change_flag)#焼き付け実行
+        else:
+            self.bake_vertex_color(realbake=False, ignoreundo=self.change_flag)#アンドゥ履歴だけ残しにいく。実際のベイクはしない。
+            self.change_view_channel()
+        
         
     def reset_hsv_palm(self):
         self.sel_model_init_flag = False
@@ -1490,9 +1514,9 @@ class VertexColorEditorWindow(qt.DockWindow):
     def paste_color(self, alpha=False):
         copy_colors = self.copy_colors[:]
         if not self.selected_items:
-            all_rows = list(set(xrange(self.all_rows))-set(self.mesh_rows))
+            all_rows = list(set(range(self.all_rows))-set(self.mesh_rows))
         else:
-            all_rows = set([item.row()  for item in self.selected_items])
+            all_rows = set([item.row() for item in self.selected_items])
         for row in all_rows:
             node, vid = self.get_row_vf_node_data(row)
             if alpha:
@@ -2165,7 +2189,7 @@ class VertexColorEditorWindow(qt.DockWindow):
             #0-1.0でクランプ
             if self.norm_but.isChecked():
                 new_value = min([1.0, new_value])
-                new_value = max([-1.0, new_value])
+                new_value = max([0.0, new_value])
             
             #まとめてデータ反映
             for cell_id in self.selected_items:
@@ -2219,8 +2243,8 @@ class VertexColorEditorWindow(qt.DockWindow):
                 if self.norm_but.isChecked():
                     if new_value > 1.0:
                         new_value = 1.0
-                    elif new_value < -1.0:
-                        new_value = -1.0
+                    elif new_value < 0.0:
+                        new_value = 0.0
                     
                 #self.color_model.setData(cell_id, new_value)
                 self.mesh_color_dict[node][vid][rgba] = new_value#全ての頂点の情報更新
